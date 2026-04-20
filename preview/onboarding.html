@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thought Biography — Begin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Lora:ital,wght@0,400;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:         #0d0c09;
+      --surface:    rgba(18,16,12,0.97);
+      --gold:       #c8a96e;
+      --gold-faint: rgba(200,169,110,0.09);
+      --gold-muted: rgba(200,169,110,0.45);
+      --cream:      #e8dcc8;
+      --cream-muted:rgba(232,220,200,0.55);
+      --border:     rgba(180,140,80,0.18);
+      --border-hov: rgba(180,140,80,0.4);
+      --green:      #8aba8a;
+      --serif:      'Cormorant Garamond', Georgia, serif;
+      --body:       'Lora', Georgia, serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--cream);
+      font-family: var(--body); min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 80px 24px 48px;
+      overflow-x: hidden;
+    }
+    body::before {
+      content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    }
+
+    @keyframes fadeUp   { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+    @keyframes spin     { to{transform:rotate(360deg)} }
+    @keyframes pop      { 0%{transform:scale(0);opacity:0} 70%{transform:scale(1.12);opacity:1} 100%{transform:scale(1);opacity:1} }
+    @keyframes nodeGlow { 0%,100%{box-shadow:0 0 0 rgba(200,169,110,0)} 50%{box-shadow:0 0 22px rgba(200,169,110,0.18)} }
+    @keyframes drift    { 0%,100%{transform:translate(0,0)} 33%{transform:translate(4px,-6px)} 66%{transform:translate(-3px,4px)} }
+    @keyframes lineDraw { from{stroke-dashoffset:200} to{stroke-dashoffset:0} }
+    @keyframes check    { 0%{stroke-dashoffset:30} 100%{stroke-dashoffset:0} }
+
+    .fade-up { animation: fadeUp 0.6s ease both; }
+
+    /* ── Logo ── */
+    #logo {
+      position: fixed; top: 24px; left: 50%;
+      transform: translateX(-50%);
+      color: var(--gold); font-family: var(--serif);
+      font-style: italic; font-size: 18px;
+      letter-spacing: 0.04em; z-index: 10;
+    }
+
+    /* ── Step dots ── */
+    #step-dots {
+      display: flex; gap: 8px;
+      justify-content: center;
+      margin-bottom: 48px;
+      position: relative; z-index: 1;
+    }
+    .dot {
+      height: 8px; border-radius: 4px;
+      background: rgba(180,140,80,0.12);
+      transition: all 0.35s ease;
+    }
+    .dot.done { background: rgba(200,169,110,0.4); width: 8px; }
+    .dot.active { background: var(--gold); width: 24px; }
+    .dot.future { width: 8px; }
+
+    /* ── Content wrap ── */
+    #content {
+      width: 100%; max-width: 700px;
+      position: relative; z-index: 1;
+      min-height: 420px;
+    }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      padding: 14px 38px;
+      background: var(--gold-faint);
+      border: 1px solid rgba(200,169,110,0.4);
+      border-radius: 3px;
+      color: var(--gold); font-size: 14px;
+      font-family: var(--body); cursor: pointer;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      transition: all 0.2s;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: rgba(200,169,110,0.18);
+      border-color: rgba(200,169,110,0.6);
+      transform: translateY(-1px);
+    }
+    .btn-primary:disabled {
+      opacity: 0.4; cursor: not-allowed;
+    }
+
+    /* ── Step 1: Welcome ── */
+    #step-welcome { text-align: center; }
+    #welcome-icon {
+      width: 72px; height: 72px;
+      border: 1px solid rgba(200,169,110,0.35);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; color: var(--gold);
+      margin: 0 auto 32px;
+      animation: nodeGlow 3s ease-in-out 0.5s infinite;
+    }
+    #welcome-h1 {
+      font-family: var(--serif); font-weight: 300;
+      font-size: clamp(26px, 3.5vw, 40px);
+      line-height: 1.25; margin-bottom: 18px;
+    }
+    #welcome-h1 em { color: var(--gold); font-style: italic; }
+    .welcome-p {
+      color: var(--cream-muted); font-size: 16px;
+      line-height: 1.82; max-width: 500px;
+      margin: 0 auto 16px; font-family: var(--body);
+    }
+    .welcome-p:last-of-type { margin-bottom: 44px; }
+
+    /* ── Step 2: Write ── */
+    #step-write h2 {
+      font-family: var(--serif); font-weight: 300;
+      font-size: 27px; color: var(--cream); margin-bottom: 8px;
+    }
+    #step-write .sub {
+      color: var(--cream-muted); font-size: 15px;
+      line-height: 1.7; margin-bottom: 24px; font-family: var(--body);
+    }
+    #prompt-box {
+      padding: 15px 18px; margin-bottom: 18px;
+      background: rgba(200,169,110,0.04);
+      border: 1px solid var(--border);
+      border-left: 3px solid rgba(200,169,110,0.38);
+      border-radius: 3px;
+      display: flex; gap: 14px; align-items: flex-start;
+      justify-content: space-between;
+    }
+    #prompt-text {
+      color: var(--cream-muted); font-size: 15px;
+      font-family: var(--serif); font-style: italic;
+      line-height: 1.65; flex: 1;
+      transition: opacity 0.25s;
+    }
+    #prompt-cycle {
+      background: none; border: none;
+      color: var(--gold-muted); font-size: 18px;
+      cursor: pointer; flex-shrink: 0;
+      padding: 0 4px; transition: color 0.2s;
+    }
+    #prompt-cycle:hover { color: var(--gold); }
+    #entry-area {
+      width: 100%; padding: 18px 20px;
+      background: rgba(15,14,11,0.9);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--cream); font-size: 16px;
+      line-height: 1.85; resize: vertical;
+      font-family: var(--serif); font-style: italic;
+      transition: border-color 0.2s;
+      min-height: 220px;
+    }
+    #entry-area:focus { border-color: rgba(180,140,80,0.42); outline: none; }
+    #write-footer {
+      display: flex; justify-content: space-between;
+      align-items: center; margin-top: 14px;
+    }
+    #word-count { color: var(--cream-muted); font-size: 13px; }
+    #word-count .count { transition: color 0.3s; }
+
+    /* ── Step 3: Processing ── */
+    #step-processing { max-width: 520px; margin: 0 auto; }
+    #step-processing h2 {
+      font-family: var(--serif); font-weight: 300;
+      font-size: 27px; text-align: center; margin-bottom: 10px;
+    }
+    #step-processing .sub {
+      color: var(--cream-muted); font-size: 15px;
+      text-align: center; margin-bottom: 40px; font-family: var(--body);
+    }
+    .pipeline-step {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px; margin-bottom: 5px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: rgba(180,140,80,0.02);
+      transition: all 0.4s ease;
+    }
+    .pipeline-step.active {
+      background: rgba(200,169,110,0.07);
+      border-color: rgba(180,140,80,0.3);
+    }
+    .pipeline-step.done {
+      background: rgba(120,180,120,0.06);
+      border-color: rgba(120,180,120,0.2);
+    }
+    .step-icon { width: 22px; height: 22px; flex-shrink: 0; }
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid rgba(200,169,110,0.2);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    .check-circle {
+      width: 22px; height: 22px;
+    }
+    .empty-circle {
+      width: 20px; height: 20px;
+      border: 1px solid rgba(180,140,80,0.2);
+      border-radius: 50%;
+    }
+    .step-label { font-size: 14px; font-family: var(--body); transition: color 0.3s; }
+    .step-label.active { color: var(--gold); }
+    .step-label.done   { color: var(--green); }
+    .step-label.future { color: var(--cream-muted); opacity: 0.5; }
+
+    /* ── Step 4: Reveal ── */
+    #step-reveal h2 {
+      font-family: var(--serif); font-weight: 300;
+      font-size: 30px; text-align: center; margin-bottom: 12px;
+    }
+    #step-reveal h2 em { color: var(--gold); font-style: italic; }
+    #step-reveal .sub {
+      color: var(--cream-muted); font-size: 15px;
+      text-align: center; margin-bottom: 32px;
+      font-family: var(--body); line-height: 1.7;
+      max-width: 520px; margin-left: auto; margin-right: auto;
+    }
+    #graph-preview {
+      height: 240px; margin-bottom: 28px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: rgba(12,11,8,0.9);
+      position: relative; overflow: hidden;
+    }
+    #graph-preview svg { width: 100%; height: 100%; }
+    .graph-label {
+      position: absolute; bottom: 12px;
+      left: 0; right: 0; text-align: center;
+      color: var(--gold-muted); font-size: 11px;
+      letter-spacing: 0.1em;
+    }
+    #concepts-row {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 24px;
+    }
+    .concept-pill {
+      padding: 6px 16px;
+      background: var(--gold-faint);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--gold); font-size: 13px;
+      font-family: var(--serif); font-style: italic;
+      animation: pop 0.4s cubic-bezier(0.34,1.56,0.64,1) var(--delay, 0s) both;
+    }
+    #open-question {
+      padding: 16px 20px; margin-bottom: 24px;
+      background: rgba(200,169,110,0.04);
+      border: 1px solid var(--border);
+      border-left: 3px solid rgba(200,169,110,0.4);
+      border-radius: 3px;
+    }
+    #open-question .oq-label {
+      color: var(--gold-muted); font-size: 9px;
+      letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 8px;
+    }
+    #open-question .oq-text {
+      color: var(--cream-muted); font-size: 15px;
+      font-family: var(--serif); font-style: italic;
+      line-height: 1.7;
+    }
+    #milestones {
+      padding: 20px 22px; margin-bottom: 30px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+    }
+    #milestones .m-title {
+      color: var(--gold); font-family: var(--serif);
+      font-style: italic; font-size: 15px; margin-bottom: 14px;
+    }
+    .milestone-row {
+      display: flex; gap: 14px; align-items: center; margin-bottom: 10px;
+    }
+    .milestone-tag {
+      padding: 3px 10px;
+      background: rgba(180,140,80,0.07);
+      border: 1px solid var(--border);
+      border-radius: 10px; font-size: 11px;
+      color: var(--gold-muted); white-space: nowrap; flex-shrink: 0;
+    }
+    .milestone-text { color: var(--cream-muted); font-size: 13px; font-family: var(--body); }
+
+    /* ── Skip ── */
+    #skip {
+      position: fixed; bottom: 22px;
+      background: none; border: none;
+      color: rgba(200,169,110,0.22); font-size: 12px;
+      cursor: pointer; font-family: var(--body);
+      letter-spacing: 0.08em; transition: color 0.2s;
+      z-index: 10;
+    }
+    #skip:hover { color: var(--gold-muted); }
+
+    /* ── Hidden class ── */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div id="logo">Thought Biography</div>
+
+  <!-- Step dots -->
+  <div id="step-dots">
+    <div class="dot active" id="dot-0"></div>
+    <div class="dot future" id="dot-1"></div>
+    <div class="dot future" id="dot-2"></div>
+    <div class="dot future" id="dot-3"></div>
+  </div>
+
+  <div id="content">
+
+    <!-- ── STEP 0: WELCOME ────────────────────────────────── -->
+    <div id="step-welcome">
+      <div id="welcome-icon">◎</div>
+      <h1 id="welcome-h1" class="fade-up">
+        Welcome, <em id="welcome-name">friend.</em>
+      </h1>
+      <p class="welcome-p fade-up" style="animation-delay:0.1s">
+        Your thought biography starts now. Over time, this system will learn how you think — which ideas you return to, how your beliefs evolve, and what has shaped you most.
+      </p>
+      <p class="welcome-p fade-up" style="animation-delay:0.2s">
+        But it begins with a single entry. Let's write one now.
+      </p>
+      <button class="btn-primary fade-up" style="animation-delay:0.3s" onclick="goToStep(1)">
+        Begin writing →
+      </button>
+    </div>
+
+    <!-- ── STEP 1: WRITE ENTRY ────────────────────────────── -->
+    <div id="step-write" class="hidden">
+      <h2>Write your first entry</h2>
+      <p class="sub">Write at least 40 words. Be honest rather than impressive — the system reads for ideas, not style.</p>
+
+      <div id="prompt-box">
+        <span id="prompt-text"></span>
+        <button id="prompt-cycle" onclick="cyclePrompt()" title="Try another prompt">↻</button>
+      </div>
+
+      <textarea id="entry-area" placeholder="Write here. Take your time." oninput="onEntryInput()"></textarea>
+
+      <div id="write-footer">
+        <div id="word-count">
+          <span class="count" id="wc-number">0</span>
+          <span id="wc-status"> words · 40 more to go</span>
+        </div>
+        <button class="btn-primary" id="process-btn" disabled onclick="goToStep(2)">
+          Process entry →
+        </button>
+      </div>
+    </div>
+
+    <!-- ── STEP 2: PROCESSING ─────────────────────────────── -->
+    <div id="step-processing" class="hidden">
+      <h2>Building your first graph entry</h2>
+      <p class="sub">This is what happens every time you write.</p>
+
+      <div id="pipeline">
+        <div class="pipeline-step" id="ps-0">
+          <div class="step-icon"><div class="empty-circle"></div></div>
+          <span class="step-label future">Reading your entry</span>
+        </div>
+        <div class="pipeline-step" id="ps-1">
+          <div class="step-icon"><div class="empty-circle"></div></div>
+          <span class="step-label future">Extracting concepts and themes</span>
+        </div>
+        <div class="pipeline-step" id="ps-2">
+          <div class="step-icon"><div class="empty-circle"></div></div>
+          <span class="step-label future">Mapping emotional tone</span>
+        </div>
+        <div class="pipeline-step" id="ps-3">
+          <div class="step-icon"><div class="empty-circle"></div></div>
+          <span class="step-label future">Detecting concept relationships</span>
+        </div>
+        <div class="pipeline-step" id="ps-4">
+          <div class="step-icon"><div class="empty-circle"></div></div>
+          <span class="step-label future">Scoring significance</span>
+        </div>
+        <div class="pipeline-step" id="ps-5">
+          <div class="step-icon"><div class="empty-circle"></div></div>
+          <span class="step-label future">Writing to your graph</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 3: REVEAL ─────────────────────────────────── -->
+    <div id="step-reveal" class="hidden">
+      <h2>Your graph has <em>begun.</em></h2>
+      <p class="sub" id="reveal-sub">From one entry, concepts have been mapped. Each entry you write will add depth and reveal new connections.</p>
+
+      <div id="graph-preview">
+        <svg id="reveal-svg" viewBox="0 0 400 240">
+          <!-- Filled dynamically by JS -->
+        </svg>
+        <div class="graph-label" id="graph-label">Your graph · 1 entry</div>
+      </div>
+
+      <div id="concepts-row"><!-- Filled by JS --></div>
+
+      <div id="open-question">
+        <p class="oq-label">Open question surfaced</p>
+        <p class="oq-text" id="oq-text"></p>
+      </div>
+
+      <div id="milestones">
+        <p class="m-title">What happens as you keep writing</p>
+        <div class="milestone-row"><span class="milestone-tag">10 entries</span><span class="milestone-text">Your first contradiction surfaces</span></div>
+        <div class="milestone-row"><span class="milestone-tag">30 entries</span><span class="milestone-text">Concept drift becomes visible</span></div>
+        <div class="milestone-row"><span class="milestone-tag">50 entries</span><span class="milestone-text">Influence tree takes shape</span></div>
+        <div class="milestone-row"><span class="milestone-tag">100+ entries</span><span class="milestone-text">Biography document becomes meaningful</span></div>
+      </div>
+
+      <div style="text-align:center;">
+        <button class="btn-primary" onclick="finish()" style="font-size:15px;padding:16px 44px;">
+          Enter your thought biography →
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <button id="skip" onclick="finish()">Skip onboarding →</button>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────
+    let currentStep = 0;
+    let entryText   = '';
+    const TOTAL     = 4;
+    const MIN_WORDS = 40;
+
+    const PROMPTS = [
+      "What idea have you been returning to lately that you haven't fully named yet?",
+      "What do you believe now that you wouldn't have believed five years ago, and why?",
+      "Which person has influenced how you think most, and what specifically did they change?",
+      "What tension are you currently sitting with — two things you believe that seem to contradict each other?",
+      "What does success mean to you right now, at this exact moment?",
+    ];
+    let promptIdx = 0;
+
+    const MOCK_CONCEPTS = [
+      "Freedom", "Ambition", "Identity", "Uncertainty", "Belonging"
+    ];
+    const MOCK_QUESTION = "What would it look like to be truly free of the expectations you've inherited?";
+
+    // ── Step dots ──────────────────────────────────────────────────
+    function updateDots(step) {
+      for (let i = 0; i < TOTAL; i++) {
+        const d = document.getElementById('dot-' + i);
+        d.className = 'dot ' + (i < step ? 'done' : i === step ? 'active' : 'future');
+      }
+    }
+
+    // ── Navigation ─────────────────────────────────────────────────
+    function goToStep(n) {
+      const steps = ['step-welcome','step-write','step-processing','step-reveal'];
+      steps.forEach((id, i) => {
+        document.getElementById(id).classList.toggle('hidden', i !== n);
+      });
+      currentStep = n;
+      updateDots(n);
+
+      // Step-specific init
+      if (n === 0) initWelcome();
+      if (n === 1) initWrite();
+      if (n === 2) initProcessing();
+      if (n === 3) initReveal();
+
+      // Hide skip on last step
+      document.getElementById('skip').classList.toggle('hidden', n >= 3);
+    }
+
+    // ── Step 0: Welcome ────────────────────────────────────────────
+    function initWelcome() {
+      const name = localStorage.getItem('tb_user_name') || 'friend';
+      const first = name.split(' ')[0];
+      document.getElementById('welcome-name').textContent = first + '.';
+    }
+
+    // ── Step 1: Write ──────────────────────────────────────────────
+    function initWrite() {
+      document.getElementById('prompt-text').textContent = PROMPTS[promptIdx];
+      document.getElementById('entry-area').focus();
+    }
+
+    function cyclePrompt() {
+      const el = document.getElementById('prompt-text');
+      el.style.opacity = '0';
+      setTimeout(() => {
+        promptIdx = (promptIdx + 1) % PROMPTS.length;
+        el.textContent = PROMPTS[promptIdx];
+        el.style.opacity = '1';
+      }, 250);
+    }
+
+    function countWords(text) {
+      return text.trim().split(/\s+/).filter(Boolean).length;
+    }
+
+    function onEntryInput() {
+      entryText = document.getElementById('entry-area').value;
+      const wc  = countWords(entryText);
+      const ready = wc >= MIN_WORDS;
+
+      document.getElementById('wc-number').textContent = wc;
+      document.getElementById('wc-number').style.color = ready ? 'var(--green)' : 'var(--gold-muted)';
+      document.getElementById('wc-status').textContent = ready
+        ? ' words · ✓ ready to process'
+        : ` words · ${MIN_WORDS - wc} more to go`;
+      document.getElementById('process-btn').disabled = !ready;
+    }
+
+    // ── Step 2: Processing ─────────────────────────────────────────
+    const PIPELINE = [
+      { id: 'ps-0', label: 'Reading your entry',               ms: 1100 },
+      { id: 'ps-1', label: 'Extracting concepts and themes',   ms: 1700 },
+      { id: 'ps-2', label: 'Mapping emotional tone',           ms: 900  },
+      { id: 'ps-3', label: 'Detecting concept relationships',  ms: 1500 },
+      { id: 'ps-4', label: 'Scoring significance',             ms: 700  },
+      { id: 'ps-5', label: 'Writing to your graph',            ms: 1000 },
+    ];
+
+    function setStepState(idx, state) {
+      const el  = document.getElementById(PIPELINE[idx].id);
+      const icon = el.querySelector('.step-icon');
+      const lbl  = el.querySelector('.step-label');
+
+      el.className = 'pipeline-step ' + state;
+      lbl.className = 'step-label ' + state;
+
+      if (state === 'active') {
+        icon.innerHTML = '<div class="spinner"></div>';
+      } else if (state === 'done') {
+        icon.innerHTML = `<svg class="check-circle" viewBox="0 0 22 22">
+          <circle cx="11" cy="11" r="10" fill="rgba(120,180,120,0.18)" stroke="rgba(120,180,120,0.6)" stroke-width="1"/>
+          <polyline points="6,11 9.5,14.5 16,8" fill="none" stroke="#8aba8a" stroke-width="1.5"
+            stroke-dasharray="30" style="animation:check 0.3s ease forwards"/>
+        </svg>`;
+      } else {
+        icon.innerHTML = '<div class="empty-circle"></div>';
+      }
+    }
+
+    function initProcessing() {
+      // Reset all to future
+      PIPELINE.forEach((_, i) => setStepState(i, 'future'));
+
+      let elapsed = 0;
+      PIPELINE.forEach((step, i) => {
+        // Activate
+        setTimeout(() => setStepState(i, 'active'), elapsed);
+        elapsed += step.ms;
+        // Complete
+        setTimeout(() => {
+          setStepState(i, 'done');
+          if (i === PIPELINE.length - 1) {
+            setTimeout(() => goToStep(3), 700);
+          }
+        }, elapsed - 150);
+      });
+    }
+
+    // ── Step 3: Reveal ─────────────────────────────────────────────
+    function initReveal() {
+      const concepts = extractConceptsFromEntry(entryText) || MOCK_CONCEPTS;
+
+      // Update subtitle
+      document.getElementById('reveal-sub').textContent =
+        `From one entry, ${concepts.length} concepts have been mapped. Each entry you write will add depth and reveal new connections.`;
+
+      // Graph label
+      document.getElementById('graph-label').textContent =
+        `Your graph · 1 entry · ${concepts.length} concepts`;
+
+      // Concept pills
+      const row = document.getElementById('concepts-row');
+      row.innerHTML = '';
+      concepts.forEach((c, i) => {
+        const pill = document.createElement('div');
+        pill.className = 'concept-pill';
+        pill.style.setProperty('--delay', (i * 0.1) + 's');
+        pill.textContent = c;
+        row.appendChild(pill);
+      });
+
+      // Open question
+      document.getElementById('oq-text').textContent =
+        '"' + MOCK_QUESTION + '"';
+
+      // Animated SVG graph
+      drawRevealGraph(concepts);
+    }
+
+    function extractConceptsFromEntry(text) {
+      if (!text || text.length < 10) return MOCK_CONCEPTS;
+      // Simple keyword extraction for demo — real version calls the API
+      const words = text.toLowerCase().split(/\W+/).filter(w => w.length > 5);
+      const conceptWords = ['freedom','meaning','ambition','identity','solitude','justice',
+        'belonging','success','discipline','purpose','values','truth','power','love',
+        'control','trust','courage','growth','change','loss','hope','fear','work'];
+      const found = [...new Set(words.filter(w => conceptWords.includes(w)))].map(
+        w => w.charAt(0).toUpperCase() + w.slice(1)
+      );
+      // Pad with defaults if too few found
+      while (found.length < 3) found.push(MOCK_CONCEPTS[found.length]);
+      return found.slice(0, 5);
+    }
+
+    function drawRevealGraph(concepts) {
+      const svg = document.getElementById('reveal-svg');
+      const W = 400, H = 240, cx = W/2, cy = H/2;
+
+      const positions = [
+        { x: cx,    y: cy    },  // center
+        { x: cx-90, y: cy-55 },
+        { x: cx+90, y: cy-55 },
+        { x: cx-75, y: cy+60 },
+        { x: cx+75, y: cy+60 },
+      ];
+
+      let html = `
+        <defs>
+          <radialGradient id="rg" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="rgba(200,169,110,0.07)"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <ellipse cx="${cx}" cy="${cy}" rx="170" ry="110" fill="url(#rg)"/>
+      `;
+
+      // Edges from center to each node
+      concepts.slice(1).forEach((_, i) => {
+        const p = positions[i + 1] || positions[1];
+        html += `<line x1="${positions[0].x}" y1="${positions[0].y}"
+          x2="${p.x}" y2="${p.y}"
+          stroke="rgba(200,169,110,0.35)" stroke-width="0.8"
+          stroke-dasharray="200"
+          style="animation:lineDraw 0.8s ease ${0.3 + i*0.12}s forwards; stroke-dashoffset:200"/>`;
+      });
+
+      // Nodes
+      concepts.slice(0, 5).forEach((c, i) => {
+        const p   = positions[i];
+        const r   = i === 0 ? 22 : 18;
+        const del = i * 0.12;
+        html += `
+          <g style="transform-origin:${p.x}px ${p.y}px;
+                    animation: pop 0.5s cubic-bezier(0.34,1.56,0.64,1) ${del}s both,
+                               drift ${7+i}s ease-in-out ${del+0.5}s infinite;">
+            <circle cx="${p.x}" cy="${p.y}" r="${r}"
+              fill="rgba(200,169,110,0.1)"
+              stroke="rgba(200,169,110,${i===0?'0.65':'0.45'})"
+              stroke-width="${i===0?1.5:1}"/>
+            <text x="${p.x}" y="${p.y+4}" text-anchor="middle"
+              fill="rgba(200,169,110,${i===0?'0.92':'0.78'})"
+              font-size="${i===0?11:9}"
+              font-family="'Cormorant Garamond',Georgia,serif"
+              font-style="italic">${c}</text>
+          </g>`;
+      });
+
+      svg.innerHTML = html;
+    }
+
+    // ── Finish ─────────────────────────────────────────────────────
+    function finish() {
+      // Mark onboarding done
+      localStorage.setItem('tb_onboarded', '1');
+      // In production: redirect to the app
+      // window.location.href = '/app';
+      alert('Onboarding complete!\n\nIn production, this redirects to the main app.\nChange the finish() function to window.location.href = "/app"');
+    }
+
+    // ── Init ────────────────────────────────────────────────────────
+    initWelcome();
+
+    // Pre-fill name from URL param for demo: ?name=Alex
+    const urlName = new URLSearchParams(window.location.search).get('name');
+    if (urlName) localStorage.setItem('tb_user_name', urlName);
+  </script>
+</body>
+</html>

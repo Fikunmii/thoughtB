@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Thought Biography — Connection Map</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0e0b;
+    --surface: #161410;
+    --surface2: #1e1c17;
+    --border: rgba(180,140,80,0.18);
+    --border-bright: rgba(200,169,110,0.45);
+    --gold: #c8a96e;
+    --gold-faint: rgba(200,169,110,0.08);
+    --text: #e8dcc8;
+    --muted: rgba(232,220,200,0.45);
+    --dim: rgba(232,220,200,0.25);
+    --red: #e07070;
+    --red-faint: rgba(224,112,112,0.1);
+    --green: #6aba6a;
+    --green-faint: rgba(106,186,106,0.1);
+    --blue: #6aabe8;
+    --blue-faint: rgba(106,171,232,0.1);
+    --purple: #b06ae8;
+    --purple-faint: rgba(176,106,232,0.1);
+    --amber: #e8a050;
+    --amber-faint: rgba(232,160,80,0.1);
+    --teal: #50c8b0;
+    --teal-faint: rgba(80,200,176,0.1);
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+    --serif: 'EB Garamond', Georgia, serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(180,140,80,0.2); border-radius: 3px; }
+
+  /* ── PAGE HEADER ── */
+  .page-header {
+    border-bottom: 1px solid var(--border);
+    padding: 28px 48px 24px;
+    background: rgba(12,11,9,0.9);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .page-title { font-family: var(--serif); font-size: 20px; color: var(--gold); font-style: italic; }
+  .page-sub { font-size: 11px; color: var(--muted); margin-top: 2px; letter-spacing: 0.04em; }
+
+  .nav-pills { display: flex; gap: 6px; }
+  .nav-pill {
+    padding: 5px 14px; border-radius: 20px; font-size: 11px;
+    border: 1px solid var(--border); color: var(--muted); cursor: pointer;
+    text-decoration: none; transition: all 0.15s;
+    font-family: var(--sans); letter-spacing: 0.04em;
+  }
+  .nav-pill:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* ── CONTENT ── */
+  .content { padding: 40px 48px 80px; max-width: 1400px; }
+
+  /* ── SECTION HEADERS ── */
+  .section-label {
+    font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px; padding-left: 2px;
+  }
+  .section-title {
+    font-family: var(--serif); font-size: 26px; color: var(--text);
+    font-weight: 400; margin-bottom: 6px;
+  }
+  .section-desc { font-size: 12px; color: var(--muted); margin-bottom: 28px; line-height: 1.7; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 52px 0; }
+
+  /* ── LEGEND ── */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin-bottom: 32px; padding: 16px 20px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── ARCHITECTURE BOXES ── */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 60px 1fr 60px 1fr;
+    gap: 0;
+    align-items: start;
+    margin-bottom: 40px;
+  }
+  .arch-col { display: flex; flex-direction: column; gap: 8px; }
+  .arch-arrow {
+    display: flex; align-items: center; justify-content: center;
+    padding-top: 40px; color: var(--gold); font-size: 22px; opacity: 0.5;
+    align-self: center;
+  }
+  .arch-layer-label {
+    text-align: center; font-size: 9px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+
+  /* ── FILE CARD ── */
+  .file-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    transition: border-color 0.15s, background 0.15s;
+    cursor: default;
+  }
+  .file-card:hover { border-color: var(--border-bright); background: var(--surface2); }
+  .file-card.entry-point { border-color: rgba(200,169,110,0.4); }
+  .file-card.frontend { border-left: 3px solid var(--blue); }
+  .file-card.backend  { border-left: 3px solid var(--green); }
+  .file-card.database { border-left: 3px solid var(--purple); }
+  .file-card.external { border-left: 3px solid var(--amber); }
+  .file-card.util     { border-left: 3px solid var(--teal); }
+
+  .fc-name { font-family: var(--mono); font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+  .fc-name.gold { color: var(--gold); }
+  .fc-name.blue { color: var(--blue); }
+  .fc-name.green { color: var(--green); }
+  .fc-name.purple { color: var(--purple); }
+  .fc-name.amber { color: var(--amber); }
+  .fc-name.teal  { color: var(--teal); }
+  .fc-name.red   { color: var(--red); }
+  .fc-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .fc-tags { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag {
+    font-size: 10px; padding: 2px 7px; border-radius: 3px;
+    font-family: var(--mono); letter-spacing: 0.02em;
+  }
+  .tag-imports { background: var(--blue-faint); color: var(--blue); }
+  .tag-exports { background: var(--green-faint); color: var(--green); }
+  .tag-api     { background: var(--amber-faint); color: var(--amber); }
+  .tag-nav     { background: var(--purple-faint); color: var(--purple); }
+  .tag-entry   { background: rgba(200,169,110,0.12); color: var(--gold); }
+
+  /* ── CONNECTION TABLE ── */
+  .conn-table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+  .conn-table th {
+    text-align: left; font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--muted); padding: 0 12px 10px; border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+  .conn-table td {
+    padding: 10px 12px; border-bottom: 1px solid rgba(180,140,80,0.07);
+    vertical-align: top; font-size: 12px;
+  }
+  .conn-table tr:hover td { background: rgba(200,169,110,0.03); }
+  .mono { font-family: var(--mono); font-size: 11px; }
+  .method-get    { color: var(--green); }
+  .method-post   { color: var(--blue); }
+  .method-delete { color: var(--red); }
+  .method-put    { color: var(--amber); }
+  .endpoint { color: var(--gold); font-family: var(--mono); font-size: 11px; }
+  .file-ref { color: var(--blue); font-family: var(--mono); font-size: 11px; }
+  .nav-target { color: var(--purple); font-family: var(--mono); font-size: 11px; }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow {
+    display: flex; flex-direction: column; gap: 0;
+    margin-bottom: 32px;
+  }
+  .flow-row {
+    display: flex; align-items: stretch; gap: 0;
+  }
+  .flow-node {
+    flex: 1; padding: 14px 18px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; margin: 3px;
+    transition: border-color 0.15s;
+  }
+  .flow-node:hover { border-color: var(--border-bright); }
+  .flow-node.root     { border-top: 2px solid var(--gold); }
+  .flow-node.fe       { border-top: 2px solid var(--blue); }
+  .flow-node.be       { border-top: 2px solid var(--green); }
+  .flow-node.db       { border-top: 2px solid var(--purple); }
+  .flow-node.ext      { border-top: 2px solid var(--amber); }
+  .flow-connector {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--gold); font-size: 18px; opacity: 0.4;
+    min-width: 30px; flex-shrink: 0;
+  }
+  .fn-label { font-family: var(--mono); font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+  .fn-desc  { font-size: 11px; color: var(--muted); }
+  .fn-exports { font-size: 10px; color: var(--teal); margin-top: 5px; font-family: var(--mono); }
+  .fn-imports { font-size: 10px; color: var(--blue); margin-top: 3px; font-family: var(--mono); }
+
+  /* ── ROUTE GROUP ── */
+  .route-group { margin-bottom: 28px; }
+  .route-group-title {
+    font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 10px;
+    padding: 6px 0; border-bottom: 1px solid var(--border);
+  }
+  .route-row {
+    display: grid; grid-template-columns: 60px 220px 180px 1fr;
+    gap: 12px; padding: 8px 4px; border-bottom: 1px solid rgba(180,140,80,0.06);
+    align-items: start; font-size: 11px;
+  }
+  .route-row:hover { background: rgba(200,169,110,0.03); }
+
+  /* ── NAV FLOW ── */
+  .nav-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;
+    margin-bottom: 32px;
+  }
+  .nav-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .nav-card-from { font-family: var(--mono); font-size: 12px; color: var(--blue); margin-bottom: 8px; font-weight: 500; }
+  .nav-arrow-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 11px; }
+  .nav-arr { color: var(--muted); }
+  .nav-to { font-family: var(--mono); font-size: 11px; color: var(--purple); }
+  .nav-reason { color: var(--muted); font-size: 10px; }
+
+  /* ── IMPORT MAP ── */
+  .import-grid {
+    display: grid; grid-template-columns: 200px 1fr; gap: 1px;
+    background: var(--border); border: 1px solid var(--border); border-radius: 6px;
+    overflow: hidden; margin-bottom: 32px;
+  }
+  .import-row-from {
+    background: var(--surface); padding: 10px 14px;
+    font-family: var(--mono); font-size: 11px; color: var(--blue);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+  }
+  .import-row-to {
+    background: var(--surface2); padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  }
+  .import-chip {
+    font-family: var(--mono); font-size: 10px; padding: 2px 8px;
+    border-radius: 3px; white-space: nowrap;
+  }
+  .ic-fe    { background: var(--blue-faint); color: var(--blue); }
+  .ic-be    { background: var(--green-faint); color: var(--green); }
+  .ic-ext   { background: var(--amber-faint); color: var(--amber); }
+  .ic-util  { background: var(--teal-faint); color: var(--teal); }
+  .ic-react { background: rgba(200,169,110,0.1); color: var(--gold); }
+  .ic-d3    { background: var(--red-faint); color: var(--red); }
+
+  /* ── CALLOUT ── */
+  .callout {
+    border: 1px solid var(--border); border-left: 3px solid var(--gold);
+    background: var(--gold-faint); border-radius: 4px;
+    padding: 14px 18px; margin-bottom: 28px;
+    font-size: 12px; color: var(--muted); line-height: 1.7;
+  }
+  .callout strong { color: var(--gold); }
+
+  /* ── TWO COL ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 32px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── SIDEBAR TOC ── */
+  .layout { display: grid; grid-template-columns: 220px 1fr; gap: 0; }
+  .sidebar-toc {
+    position: sticky; top: 73px; height: calc(100vh - 73px);
+    overflow-y: auto; border-right: 1px solid var(--border);
+    padding: 24px 20px;
+  }
+  .toc-label { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .toc-link {
+    display: block; padding: 5px 0; font-size: 11px; color: var(--muted);
+    text-decoration: none; transition: color 0.15s; line-height: 1.4;
+  }
+  .toc-link:hover { color: var(--gold); }
+  .toc-link.l2 { padding-left: 12px; font-size: 10px; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Thought Biography — Connection Map</div>
+    <div class="page-sub">Every import, API call, and navigation link across the entire codebase</div>
+  </div>
+  <nav class="nav-pills">
+    <a class="nav-pill" href="#imports">Import Map</a>
+    <a class="nav-pill" href="#navigation">Page Navigation</a>
+    <a class="nav-pill" href="#api-calls">API Calls</a>
+    <a class="nav-pill" href="#backend">Backend Map</a>
+    <a class="nav-pill" href="#dataflow">Data Flow</a>
+  </nav>
+</div>
+
+<div class="layout">
+
+<!-- ── SIDEBAR TOC ── -->
+<aside class="sidebar-toc">
+  <div class="toc-label">Sections</div>
+  <a class="toc-link" href="#layer-overview">Layer Overview</a>
+  <a class="toc-link" href="#imports">1. Import Map</a>
+  <a class="toc-link l2" href="#imports-entry">Entry Points</a>
+  <a class="toc-link l2" href="#imports-shared">Shared Deps</a>
+  <a class="toc-link l2" href="#imports-views">All Files</a>
+  <a class="toc-link" href="#navigation">2. Page Navigation</a>
+  <a class="toc-link l2" href="#nav-flow">Who navigates where</a>
+  <a class="toc-link" href="#api-calls">3. API Calls</a>
+  <a class="toc-link l2" href="#api-per-page">Per-page calls</a>
+  <a class="toc-link" href="#backend">4. Backend Map</a>
+  <a class="toc-link l2" href="#be-modules">Module list</a>
+  <a class="toc-link l2" href="#be-routes">All routes</a>
+  <a class="toc-link" href="#dataflow">5. Full Data Flow</a>
+  <a class="toc-link l2" href="#df-entry">Writing an entry</a>
+  <a class="toc-link l2" href="#df-bio">Biography</a>
+  <a class="toc-link l2" href="#df-auth">Auth cycle</a>
+</aside>
+
+<!-- ── MAIN ── -->
+<main class="content">
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="layer-overview">
+  <div class="section-label">Overview</div>
+  <div class="section-title">Three layers. How they connect.</div>
+  <div class="section-desc">The browser talks to FastAPI over HTTP. FastAPI talks to Neo4j over Bolt and to Claude/Whisper/SMTP over HTTPS. Nothing in the browser ever touches the database directly.</div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Frontend (React)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Backend (FastAPI)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>Database (Neo4j)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>External APIs</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div>Utilities / Helpers</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div>Entry points</div>
+  </div>
+
+  <div class="arch-grid">
+
+    <!-- FRONTEND COL -->
+    <div class="arch-col">
+      <div class="arch-layer-label">Frontend · port 5173</div>
+
+      <div class="file-card entry-point frontend">
+        <div class="fc-name blue">main.jsx</div>
+        <div class="fc-desc">React entry. Renders &lt;Root/&gt; into #root div.</div>
+        <div class="fc-tags"><span class="tag tag-imports">→ Root.jsx</span></div>
+      </div>
+
+      <div class="file-card frontend">
+        <div class="fc-name blue">Root.jsx</div>
+        <div class="fc-desc">Top-level router. Decides which screen to show based on auth state.</div>
+        <div class="fc-tags">
+          <span class="tag tag-imports">→ Auth.jsx</span>
+          <span class="tag tag-imports">→ LandingPage.jsx</span>
+          <span class="tag tag-imports">→ Onboarding.jsx</span>
+          <span class="tag tag-imports">→ App.jsx</span>
+        </div>
+      </div>
+
+      <div class="file-card frontend">
+        <div class="fc-name blue">App.jsx</div>
+        <div class="fc-desc">Main shell. Sidebar + topbar + view router. Owns activeView state.</div>
+        <div class="fc-tags">
+          <span class="tag tag-imports">→ all 14 views</span>
+          <span class="tag tag-imports">→ Auth.jsx</span>
+          <span class="tag tag-imports">→ ErrorBoundary.jsx</span>
+          <span class="tag tag-api">GET /dashboard</span>
+        </div>
+      </div>
+
+      <div class="file-card util">
+        <div class="fc-name teal">Auth.jsx</div>
+        <div class="fc-desc">Login/register UI. Manages JWT tokens. Exports authFetch() used by every view.</div>
+        <div class="fc-tags">
+          <span class="tag tag-exports">exports authFetch</span>
+          <span class="tag tag-exports">exports AuthStorage</span>
+          <span class="tag tag-api">POST /auth/login</span>
+          <span class="tag tag-api">POST /auth/register</span>
+        </div>
+      </div>
+
+      <div class="file-card util">
+        <div class="fc-name teal">api-client.js</div>
+        <div class="fc-desc">Centralised fetch wrapper. Auto-injects JWT, handles 401 refresh, multipart uploads, SSE streams.</div>
+        <div class="fc-tags">
+          <span class="tag tag-exports">exports api.get/post/put/delete</span>
+          <span class="tag tag-exports">exports uploadFile()</span>
+          <span class="tag tag-exports">exports createEventStream()</span>
+        </div>
+      </div>
+
+      <div class="file-card util">
+        <div class="fc-name teal">ErrorBoundary.jsx</div>
+        <div class="fc-desc">Catches crashes. Exports skeleton loaders, spinners, empty states used across all views.</div>
+        <div class="fc-tags">
+          <span class="tag tag-exports">ErrorBoundary</span>
+          <span class="tag tag-exports">Spinner</span>
+          <span class="tag tag-exports">EmptyState</span>
+          <span class="tag tag-exports">ConnectionBanner</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARROW 1 -->
+    <div class="arch-arrow">→</div>
+
+    <!-- BACKEND COL -->
+    <div class="arch-col">
+      <div class="arch-layer-label">Backend · port 8000</div>
+
+      <div class="file-card entry-point backend">
+        <div class="fc-name green">api.py</div>
+        <div class="fc-desc">Entry point. Starts uvicorn. Imports + registers all route modules. Creates Neo4j indexes on startup. Starts APScheduler.</div>
+        <div class="fc-tags">
+          <span class="tag tag-imports">→ auth.py</span>
+          <span class="tag tag-imports">→ search_api.py</span>
+          <span class="tag tag-imports">→ export_api.py</span>
+          <span class="tag tag-imports">→ biography_api.py</span>
+          <span class="tag tag-imports">→ reminders_sharing_api.py</span>
+          <span class="tag tag-imports">→ transcribe.py</span>
+          <span class="tag tag-imports">→ digest.py</span>
+          <span class="tag tag-imports">→ limitless_import.py</span>
+        </div>
+      </div>
+
+      <div class="file-card backend">
+        <div class="fc-name green">auth.py</div>
+        <div class="fc-desc">JWT creation/validation. bcrypt hashing. User CRUD in Neo4j. Exports get_current_user() dependency used by every protected route.</div>
+        <div class="fc-tags">
+          <span class="tag tag-exports">exports get_current_user()</span>
+          <span class="tag tag-api">POST /auth/register</span>
+          <span class="tag tag-api">POST /auth/login</span>
+          <span class="tag tag-api">POST /auth/refresh</span>
+        </div>
+      </div>
+
+      <div class="file-card backend">
+        <div class="fc-name green">biography_api.py</div>
+        <div class="fc-desc">Biography HTTP endpoints. Calls biography_generator.py and streams results as SSE.</div>
+        <div class="fc-tags">
+          <span class="tag tag-imports">→ biography_generator.py</span>
+          <span class="tag tag-imports">→ auth.py (get_current_user)</span>
+          <span class="tag tag-api">POST /biography/generate (SSE)</span>
+        </div>
+      </div>
+
+      <div class="file-card backend">
+        <div class="fc-name green">biography_generator.py</div>
+        <div class="fc-desc">7-pass Claude pipeline. No routes — called by biography_api.py only. Reads graph from Neo4j, calls Claude 7 times.</div>
+        <div class="fc-tags">
+          <span class="tag tag-imports">→ Neo4j driver</span>
+          <span class="tag tag-imports">→ Anthropic SDK</span>
+        </div>
+      </div>
+
+      <div class="file-card backend">
+        <div class="fc-name green">digest.py</div>
+        <div class="fc-desc">APScheduler runs hourly. Reads graph signals from Neo4j. Calls Claude for narrative. Sends via SMTP.</div>
+        <div class="fc-tags">
+          <span class="tag tag-api">POST /digest/preview</span>
+          <span class="tag tag-api">POST /digest/test</span>
+          <span class="tag tag-imports">→ APScheduler</span>
+          <span class="tag tag-imports">→ SMTP</span>
+        </div>
+      </div>
+
+      <div class="file-card backend">
+        <div class="fc-name green">encryption.py</div>
+        <div class="fc-desc">AES-256-GCM. Key derived from user password via PBKDF2. Called by api.py before writing entry content to Neo4j.</div>
+        <div class="fc-tags">
+          <span class="tag tag-exports">exports encrypt()</span>
+          <span class="tag tag-exports">exports decrypt()</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARROW 2 -->
+    <div class="arch-arrow">→</div>
+
+    <!-- DATABASE + EXTERNAL COL -->
+    <div class="arch-col">
+      <div class="arch-layer-label">Data + External</div>
+
+      <div class="file-card database">
+        <div class="fc-name purple">Neo4j Graph DB</div>
+        <div class="fc-desc">Port 7687 (Bolt). Stores all nodes and edges. AuraDB in production.</div>
+        <div class="fc-tags">
+          <span class="tag" style="background:var(--purple-faint);color:var(--purple)">User · Entry · Concept</span>
+          <span class="tag" style="background:var(--purple-faint);color:var(--purple)">Person · Source · Biography</span>
+          <span class="tag" style="background:var(--purple-faint);color:var(--purple)">AUTHORED · OWNS · CONTAINS</span>
+          <span class="tag" style="background:var(--purple-faint);color:var(--purple)">CONTRADICTS · REINFORCES</span>
+        </div>
+      </div>
+
+      <div class="file-card external">
+        <div class="fc-name amber">Anthropic Claude</div>
+        <div class="fc-desc">Called by api.py (concept extraction on each entry) and biography_generator.py (7-pass pipeline) and digest.py (narrative).</div>
+        <div class="fc-tags">
+          <span class="tag tag-api">claude-sonnet: extraction</span>
+          <span class="tag tag-api">claude-opus: biography</span>
+        </div>
+      </div>
+
+      <div class="file-card external">
+        <div class="fc-name amber">OpenAI Whisper</div>
+        <div class="fc-desc">Called by transcribe.py. Receives audio blob from frontend, returns transcript text.</div>
+        <div class="fc-tags">
+          <span class="tag tag-api">POST /transcribe</span>
+        </div>
+      </div>
+
+      <div class="file-card external">
+        <div class="fc-name amber">SMTP (Gmail)</div>
+        <div class="fc-desc">Called by digest.py. Sends weekly concept drift digest email to each user.</div>
+        <div class="fc-tags">
+          <span class="tag tag-api">smtp.gmail.com:587</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="imports">
+  <div class="section-label">Section 1</div>
+  <div class="section-title">Import Map</div>
+  <div class="section-desc">Every frontend file and exactly what it imports. Read left column as the file, right column as what it depends on.</div>
+
+  <div class="callout">
+    <strong>Rule:</strong> Every view imports <code>authFetch</code> from <code>Auth.jsx</code> for authenticated API calls. Views that show loading/error states import from <code>ErrorBoundary.jsx</code>. Views with graphs import <code>d3</code>. No view ever imports another view — all cross-page navigation goes through the <code>onNavigate()</code> prop passed down from <code>App.jsx</code>.
+  </div>
+
+  <div id="imports-entry">
+    <div class="section-label" style="margin-bottom:12px">Entry Point Chain</div>
+
+    <div class="flow">
+      <div class="flow-row">
+        <div class="flow-node root">
+          <div class="fn-label" style="color:var(--gold)">index.html</div>
+          <div class="fn-desc">Loads /src/main.jsx via &lt;script type="module"&gt;</div>
+        </div>
+      </div>
+      <div class="flow-row" style="justify-content:center;padding:2px 0">
+        <div class="flow-connector" style="font-size:14px;">↓ imports</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-node fe">
+          <div class="fn-label" style="color:var(--blue)">main.jsx</div>
+          <div class="fn-desc">createRoot(document.getElementById('root')).render(&lt;Root/&gt;)</div>
+          <div class="fn-imports">imports: react, react-dom, Root.jsx</div>
+        </div>
+      </div>
+      <div class="flow-row" style="justify-content:center;padding:2px 0">
+        <div class="flow-connector" style="font-size:14px;">↓ imports</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-node fe">
+          <div class="fn-label" style="color:var(--blue)">Root.jsx</div>
+          <div class="fn-desc">Checks AuthStorage. Routes to: LandingPage (not logged in) → Auth → Onboarding (first session) → App (logged in)</div>
+          <div class="fn-imports">imports: Auth.jsx, LandingPage.jsx, Onboarding.jsx, App.jsx</div>
+        </div>
+      </div>
+      <div class="flow-row" style="justify-content:center;padding:2px 0">
+        <div class="flow-connector" style="font-size:14px;">↓ imports (after login)</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-node fe">
+          <div class="fn-label" style="color:var(--blue)">App.jsx</div>
+          <div class="fn-desc">Sidebar + topbar + ViewRouter. Owns activeView state. Passes onNavigate() to every view.</div>
+          <div class="fn-imports">imports: Auth.jsx (authFetch, AuthStorage), ErrorBoundary.jsx (ErrorBoundary, ConnectionBanner), all 14 view/page components</div>
+          <div class="fn-exports">passes down: user, onNavigate — to every view</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="imports-shared" style="margin-top:32px">
+    <div class="section-label" style="margin-bottom:12px">Shared Dependencies — what every file uses</div>
+    <div class="two-col">
+      <div class="file-card util">
+        <div class="fc-name teal">Auth.jsx exports</div>
+        <div class="fc-desc" style="margin-bottom:8px">Imported by: <strong>every single view</strong></div>
+        <div class="fc-tags">
+          <span class="tag tag-exports">authFetch(url, opts)</span>
+          <span class="tag tag-exports">AuthStorage.getUser()</span>
+          <span class="tag tag-exports">AuthStorage.isLoggedIn()</span>
+          <span class="tag tag-exports">AuthStorage.clear()</span>
+        </div>
+        <div class="fc-desc" style="margin-top:8px">authFetch wraps window.fetch, auto-injects <code>Authorization: Bearer token</code>, and auto-retries with refreshed token on 401.</div>
+      </div>
+      <div class="file-card util">
+        <div class="fc-name teal">ErrorBoundary.jsx exports</div>
+        <div class="fc-desc" style="margin-bottom:8px">Imported by: App, Dashboard, Search, InfluenceTrees, TemporalPlayback, Reminders, TherapistMode</div>
+        <div class="fc-tags">
+          <span class="tag tag-exports">ErrorBoundary</span>
+          <span class="tag tag-exports">ConnectionBanner</span>
+          <span class="tag tag-exports">Spinner</span>
+          <span class="tag tag-exports">EmptyState</span>
+          <span class="tag tag-exports">DashboardSkeleton</span>
+          <span class="tag tag-exports">GraphSkeleton</span>
+          <span class="tag tag-exports">SearchSkeleton</span>
+          <span class="tag tag-exports">ErrorMessage</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="imports-views" style="margin-top:32px">
+    <div class="section-label" style="margin-bottom:12px">All 14 views — complete import list</div>
+
+    <div class="import-grid">
+      <!-- header -->
+      <div style="background:var(--surface2);padding:8px 14px;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)">File</div>
+      <div style="background:var(--surface2);padding:8px 14px;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)">Imports</div>
+
+      <div class="import-row-from">Dashboard.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState, useEffect)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+        <span class="import-chip ic-fe">ErrorBoundary — DashboardSkeleton, EmptyState, ErrorMessage</span>
+      </div>
+
+      <div class="import-row-from">ThoughtBiography.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState, useEffect, useRef, useCallback)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+      </div>
+
+      <div class="import-row-from">ThoughtGraph.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useEffect, useRef, useState, useCallback)</span>
+        <span class="import-chip ic-d3">d3 (force simulation, zoom, drag)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+      </div>
+
+      <div class="import-row-from">ContradictionWorkflow.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState, useEffect, useRef)</span>
+        <span class="import-chip ic-d3">d3 (radial layout)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+      </div>
+
+      <div class="import-row-from">ConceptDriftTimeline.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState, useEffect, useCallback)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+        <span class="import-chip ic-ext">recharts (LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer)</span>
+      </div>
+
+      <div class="import-row-from">BiographyDocument.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState, useEffect, useRef, useCallback)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+      </div>
+
+      <div class="import-row-from">InfluenceTrees.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useEffect, useRef, useState)</span>
+        <span class="import-chip ic-d3">d3 (tree, radial layout, link)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+        <span class="import-chip ic-fe">ErrorBoundary — GraphSkeleton, EmptyState</span>
+      </div>
+
+      <div class="import-row-from">TemporalPlayback.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useEffect, useRef, useState, useCallback)</span>
+        <span class="import-chip ic-d3">d3 (force simulation)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+        <span class="import-chip ic-fe">ErrorBoundary — GraphSkeleton</span>
+      </div>
+
+      <div class="import-row-from">Search.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState, useRef, useCallback)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+        <span class="import-chip ic-fe">ErrorBoundary — SearchSkeleton, EmptyState</span>
+      </div>
+
+      <div class="import-row-from">Reminders.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState, useEffect)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+        <span class="import-chip ic-fe">ErrorBoundary — Spinner, EmptyState</span>
+      </div>
+
+      <div class="import-row-from">Export.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+      </div>
+
+      <div class="import-row-from">TherapistMode.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState, useEffect)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+        <span class="import-chip ic-fe">ErrorBoundary — Spinner, EmptyState, ErrorMessage</span>
+      </div>
+
+      <div class="import-row-from">DigestSettings.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState, useEffect)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+      </div>
+
+      <div class="import-row-from">ImportHistory.jsx</div>
+      <div class="import-row-to">
+        <span class="import-chip ic-react">react (useState, useEffect, useRef, useCallback)</span>
+        <span class="import-chip ic-fe">Auth.jsx — authFetch</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="navigation">
+  <div class="section-label">Section 2</div>
+  <div class="section-title">Page Navigation</div>
+  <div class="section-desc">Which pages navigate to which other pages, what triggers the navigation, and how it works. All navigation goes through <code>onNavigate(viewId)</code> — a callback passed from App.jsx to every view. No view imports another view directly.</div>
+
+  <div class="callout">
+    <strong>How navigation works:</strong> App.jsx owns <code>activeView</code> state. It passes <code>onNavigate = (id) => setActiveView(id)</code> to every view as a prop. A view calls <code>onNavigate("journal")</code> to switch — App.jsx updates activeView and the ViewRouter renders the new component. No React Router. No URLs. Pure state.
+  </div>
+
+  <div id="nav-flow">
+    <div class="section-label" style="margin-bottom:16px">Who navigates where — and why</div>
+    <div class="nav-grid">
+
+      <div class="nav-card">
+        <div class="nav-card-from">Root.jsx</div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">LandingPage</span><span class="nav-reason"> — not logged in</span></div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">Auth</span><span class="nav-reason"> — sign in / sign up flow</span></div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">Onboarding</span><span class="nav-reason"> — first session (tb_onboarded not set)</span></div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">App</span><span class="nav-reason"> — logged in + onboarded</span></div>
+      </div>
+
+      <div class="nav-card">
+        <div class="nav-card-from">Dashboard.jsx</div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">onNavigate("journal")</span><span class="nav-reason"> — "Most recent entry" action</span></div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">onNavigate("journal")</span><span class="nav-reason"> — "Write now" empty state CTA</span></div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">onNavigate("contradictions")</span><span class="nav-reason"> — "Open questions / Resolve →"</span></div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">onNavigate("contradictions")</span><span class="nav-reason"> — "Active contradictions / Full view →"</span></div>
+      </div>
+
+      <div class="nav-card">
+        <div class="nav-card-from">ThoughtBiography.jsx</div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">onNavigate("biography")</span><span class="nav-reason"> — "Generate biography →" button (unlocks at 10 entries)</span></div>
+      </div>
+
+      <div class="nav-card">
+        <div class="nav-card-from">ThoughtGraph.jsx</div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">onNavigate("drift")</span><span class="nav-reason"> — "View drift →" when user clicks a concept node</span></div>
+      </div>
+
+      <div class="nav-card">
+        <div class="nav-card-from">Reminders.jsx</div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">onNavigate("journal", {prompt})</span><span class="nav-reason"> — "Write now" on a reflection prompt</span></div>
+      </div>
+
+      <div class="nav-card">
+        <div class="nav-card-from">ImportHistory.jsx</div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">onNavigate("graph")</span><span class="nav-reason"> — "View your graph →" after import completes</span></div>
+      </div>
+
+      <div class="nav-card">
+        <div class="nav-card-from">LandingPage.jsx</div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">Root setShowAuth(true)</span><span class="nav-reason"> — CTA buttons trigger auth modal</span></div>
+      </div>
+
+      <div class="nav-card">
+        <div class="nav-card-from">Onboarding.jsx</div>
+        <div class="nav-arrow-row"><span class="nav-arr">→</span><span class="nav-to">Root handleOnboardingComplete()</span><span class="nav-reason"> — sets tb_onboarded in localStorage → routes to App</span></div>
+      </div>
+
+    </div>
+
+    <div class="callout" style="margin-top:8px">
+      <strong>Note:</strong> ContradictionWorkflow, ConceptDriftTimeline, BiographyDocument, Search, Export, TherapistMode, and DigestSettings have no outbound navigation. They are terminal views — users leave them by clicking the sidebar.
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="api-calls">
+  <div class="section-label">Section 3</div>
+  <div class="section-title">API Calls Per Page</div>
+  <div class="section-desc">Every HTTP request each frontend component makes, the method, the endpoint, and what it does with the response.</div>
+
+  <div id="api-per-page">
+
+    <div class="route-group">
+      <div class="route-group-title">App.jsx — shell-level calls</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/dashboard</span>
+        <span class="file-ref">on auth + on every view switch</span>
+        <span style="color:var(--muted)">loads stats (entries, concepts, contradictions) for sidebar counters</span>
+      </div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/health</span>
+        <span class="file-ref">every 30 seconds</span>
+        <span style="color:var(--muted)">drives the green/red connection dot in the sidebar</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">Auth.jsx</div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/auth/register</span>
+        <span class="file-ref">on register submit</span>
+        <span style="color:var(--muted)">creates account → saves tokens → calls onAuthenticated(user)</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/auth/login</span>
+        <span class="file-ref">on login submit</span>
+        <span style="color:var(--muted)">validates credentials → saves tokens → calls onAuthenticated(user)</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/auth/refresh</span>
+        <span class="file-ref">auto on 401</span>
+        <span style="color:var(--muted)">silently refreshes expired access token using stored refresh token</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">Dashboard.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/dashboard</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">stats + recent entries + open questions + daily prompt + active contradictions</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">ThoughtBiography.jsx — Journal Editor</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/entries?limit=50</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">loads entry list for right panel</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/entries</span>
+        <span class="file-ref">on save (Cmd+Enter)</span>
+        <span style="color:var(--muted)">saves entry → triggers Claude extraction → returns entry + concepts</span>
+      </div>
+      <div class="route-row">
+        <span class="method-delete mono">DELETE</span>
+        <span class="endpoint">/entries/{id}</span>
+        <span class="file-ref">on delete confirm</span>
+        <span style="color:var(--muted)">removes entry and its concept links from graph</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/transcribe</span>
+        <span class="file-ref">on voice recording stop</span>
+        <span style="color:var(--muted)">sends audio blob → gets transcript → inserts into textarea</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">ThoughtGraph.jsx — D3 Force Graph</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/graph</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">returns {nodes, edges} → D3 builds force simulation</span>
+      </div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/concepts/{label}</span>
+        <span class="file-ref">on node click</span>
+        <span style="color:var(--muted)">loads concept detail panel: history, connections, drift, entries</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">ContradictionWorkflow.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/graph</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">reads CONTRADICTS edges only → builds radial map and list</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">ConceptDriftTimeline.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/concepts?limit=50</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">populates concept picker list in left panel</span>
+      </div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/concepts/{label}/drift</span>
+        <span class="file-ref">on concept select</span>
+        <span style="color:var(--muted)">time-series of stability + sentiment → feeds Recharts LineChart</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">BiographyDocument.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/biography</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">eligibility check — shows entry count, entries needed, can_generate flag</span>
+      </div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/biography/history</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">loads history sidebar (previous generations)</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/biography/generate</span>
+        <span class="file-ref">on "Generate" click</span>
+        <span style="color:var(--muted)">SSE stream — progress events per pass → final biography text → auto-saved</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/biography/save</span>
+        <span class="file-ref">manual save</span>
+        <span style="color:var(--muted)">persists current biography text to Neo4j</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">InfluenceTrees.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/influence-trees</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">D3-ready hierarchical data: books/people as roots, concepts as leaves</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">TemporalPlayback.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/temporal-data</span>
+        <span class="file-ref">on mount + on scrub</span>
+        <span style="color:var(--muted)">graph state at a date — ?date=2023-06-01 → D3 re-renders</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">Search.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/search?q=...&mode=...</span>
+        <span class="file-ref">on query change (debounced)</span>
+        <span style="color:var(--muted)">mode: fulltext | semantic | concept. Returns matching entries.</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">Reminders.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/reminders/prompts</span>
+        <span class="file-ref">on mount (parallel)</span>
+        <span style="color:var(--muted)">AI-generated reflection prompts based on graph state</span>
+      </div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/reminders/digest</span>
+        <span class="file-ref">on mount (parallel)</span>
+        <span style="color:var(--muted)">digest preview data for current week</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/reminders/generate</span>
+        <span class="file-ref">on "Refresh" click</span>
+        <span style="color:var(--muted)">generates new prompts on demand</span>
+      </div>
+      <div class="route-row">
+        <span class="method-put mono">PUT</span>
+        <span class="endpoint">/reminders/settings</span>
+        <span class="file-ref">on settings change</span>
+        <span style="color:var(--muted)">saves prompt frequency and concept filter preferences</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">Export.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/export?format=json</span>
+        <span class="file-ref">on "Download JSON"</span>
+        <span style="color:var(--muted)">all entries + concepts as structured JSON</span>
+      </div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/export?format=markdown</span>
+        <span class="file-ref">on "Download Markdown"</span>
+        <span style="color:var(--muted)">all entries as Markdown with concept annotations</span>
+      </div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/export?format=graph</span>
+        <span class="file-ref">on "Download Graph"</span>
+        <span style="color:var(--muted)">graph topology as JSON (nodes + edges)</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">TherapistMode.jsx — Shared Access</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/shares</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">list of active share links with access logs</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/shares</span>
+        <span class="file-ref">on "Create link"</span>
+        <span style="color:var(--muted)">generates new read-only share token → returns URL</span>
+      </div>
+      <div class="route-row">
+        <span class="method-delete mono">DELETE</span>
+        <span class="endpoint">/shares/{id}</span>
+        <span class="file-ref">on "Revoke"</span>
+        <span style="color:var(--muted)">invalidates share token immediately</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">DigestSettings.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/digest/settings</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">loads current preferences: day, hour, enabled, last_sent</span>
+      </div>
+      <div class="route-row">
+        <span class="method-put mono">PUT</span>
+        <span class="endpoint">/digest/settings</span>
+        <span class="file-ref">on save</span>
+        <span style="color:var(--muted)">updates day/hour/enabled in Neo4j User node</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/digest/preview</span>
+        <span class="file-ref">on "Preview" click</span>
+        <span style="color:var(--muted)">generates and returns HTML digest — rendered inline</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/digest/test</span>
+        <span class="file-ref">on "Send test" click</span>
+        <span style="color:var(--muted)">sends real digest email to current user's address right now</span>
+      </div>
+    </div>
+
+    <div class="route-group">
+      <div class="route-group-title">ImportHistory.jsx</div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/import/limitless/history</span>
+        <span class="file-ref">on mount</span>
+        <span style="color:var(--muted)">all previous import jobs with status and entry counts</span>
+      </div>
+      <div class="route-row">
+        <span class="method-post mono">POST</span>
+        <span class="endpoint">/import/limitless</span>
+        <span class="file-ref">on file drop/select</span>
+        <span style="color:var(--muted)">uploads .json or .zip → returns job_id immediately (non-blocking)</span>
+      </div>
+      <div class="route-row">
+        <span class="method-get mono">GET</span>
+        <span class="endpoint">/import/limitless/status/{id}</span>
+        <span class="file-ref">every 2s while job active</span>
+        <span style="color:var(--muted)">polls progress: processed/total/imported/failed → drives progress bar</span>
+      </div>
+      <div class="route-row">
+        <span class="method-delete mono">DELETE</span>
+        <span class="endpoint">/import/limitless/{id}</span>
+        <span class="file-ref">on "Delete batch"</span>
+        <span style="color:var(--muted)">removes all imported entries (preserves concepts shared with typed entries)</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="backend">
+  <div class="section-label">Section 4</div>
+  <div class="section-title">Backend Module Map</div>
+  <div class="section-desc">How the backend Python files depend on each other. api.py is the hub — every other module registers itself into it.</div>
+
+  <div id="be-modules" style="margin-bottom:32px">
+    <div class="section-label" style="margin-bottom:12px">Module dependency tree</div>
+
+    <div class="flow">
+      <div class="flow-row">
+        <div class="flow-node root be" style="text-align:center">
+          <div class="fn-label" style="color:var(--gold);font-size:14px">api.py</div>
+          <div class="fn-desc" style="text-align:center">Entry point. Imports all modules, creates FastAPI app, registers routes, starts scheduler.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px">
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">auth.py</div>
+        <div class="fn-desc">Imported by: api.py, and every other module (for get_current_user dependency)</div>
+        <div class="fn-imports">→ Neo4j, jose (JWT), passlib (bcrypt)</div>
+        <div class="fn-exports">exports: get_current_user(), register_auth_routes()</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">encryption.py</div>
+        <div class="fn-desc">Imported by: api.py only (called before/after Neo4j entry writes)</div>
+        <div class="fn-imports">→ Python cryptography lib</div>
+        <div class="fn-exports">exports: encrypt(), decrypt()</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">search_api.py</div>
+        <div class="fn-desc">Routes: /search, /dashboard</div>
+        <div class="fn-imports">→ auth.py, Neo4j</div>
+        <div class="fn-exports">exports: register_search_routes()</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">export_api.py</div>
+        <div class="fn-desc">Routes: /export</div>
+        <div class="fn-imports">→ auth.py, Neo4j</div>
+        <div class="fn-exports">exports: register_export_routes()</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">biography_generator.py</div>
+        <div class="fn-desc">No routes. Called only by biography_api.py. The 7-pass pipeline.</div>
+        <div class="fn-imports">→ Neo4j, Anthropic SDK</div>
+        <div class="fn-exports">exports: generate_biography_stream(), generate_biography()</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">biography_api.py</div>
+        <div class="fn-desc">Routes: /biography/*. Wraps generator in SSE stream.</div>
+        <div class="fn-imports">→ biography_generator.py, auth.py, Neo4j</div>
+        <div class="fn-exports">exports: register_biography_routes()</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">reminders_sharing_api.py</div>
+        <div class="fn-desc">Routes: /reminders/*, /shares/*, /shared/*</div>
+        <div class="fn-imports">→ auth.py, Neo4j, Anthropic SDK</div>
+        <div class="fn-exports">exports: register_reminders_sharing_routes()</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">transcribe.py</div>
+        <div class="fn-desc">Route: POST /transcribe. Receives audio, calls Whisper.</div>
+        <div class="fn-imports">→ auth.py, OpenAI SDK</div>
+        <div class="fn-exports">exports: router (FastAPI router)</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">digest.py</div>
+        <div class="fn-desc">Routes: /digest/*. APScheduler runs hourly. Calls Claude + SMTP.</div>
+        <div class="fn-imports">→ auth.py, Neo4j, Anthropic SDK, APScheduler, smtplib</div>
+        <div class="fn-exports">exports: register_digest_routes(), start_digest_scheduler()</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">limitless_import.py</div>
+        <div class="fn-desc">Routes: /import/*. Parses archive, runs extraction, background job.</div>
+        <div class="fn-imports">→ auth.py, Neo4j, Anthropic SDK</div>
+        <div class="fn-exports">exports: register_import_routes()</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">ingest.py</div>
+        <div class="fn-desc">CLI tool only. Not imported by api.py. Run directly.</div>
+        <div class="fn-imports">→ Neo4j, Anthropic SDK</div>
+        <div class="fn-exports">(CLI only)</div>
+      </div>
+
+      <div class="flow-node be">
+        <div class="fn-label" style="color:var(--green)">queries.py</div>
+        <div class="fn-desc">CLI tool only. Not imported by api.py. Run directly.</div>
+        <div class="fn-imports">→ Neo4j driver</div>
+        <div class="fn-exports">(CLI only)</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="be-routes">
+    <div class="section-label" style="margin-bottom:12px">Every backend route and which module owns it</div>
+    <table class="conn-table">
+      <thead>
+        <tr>
+          <th>Method</th><th>Route</th><th>Module</th><th>Auth</th><th>What it does</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/health</td><td class="file-ref">api.py</td><td style="color:var(--green);font-size:11px">open</td><td>Connection check. No auth.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/auth/register</td><td class="file-ref">auth.py</td><td style="color:var(--green);font-size:11px">open</td><td>Create account, return JWT pair.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/auth/login</td><td class="file-ref">auth.py</td><td style="color:var(--green);font-size:11px">open</td><td>Validate credentials, return JWT pair.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/auth/refresh</td><td class="file-ref">auth.py</td><td style="color:var(--green);font-size:11px">open</td><td>Exchange refresh token for new access token.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/auth/me</td><td class="file-ref">auth.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Current user info.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/auth/logout</td><td class="file-ref">auth.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Stateless — client discards tokens.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/entries</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Create entry → encrypt → Claude extraction → write to Neo4j.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/entries</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>List entries paginated. ?limit=&offset=</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/entries/{id}</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Single entry with concepts.</td></tr>
+        <tr><td class="method-put mono">PUT</td><td class="endpoint">/entries/{id}</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Update entry content.</td></tr>
+        <tr><td class="method-delete mono">DELETE</td><td class="endpoint">/entries/{id}</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Delete entry + detach concept links.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/graph</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Full graph {nodes, edges} for D3.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/graph/stats</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Node/edge counts.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/concepts</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>All concepts for user.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/concepts/{label}</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Concept detail: connections, history, drift, entries.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/influence-trees</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>D3-ready hierarchical influence data.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/temporal-data</td><td class="file-ref">api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Graph state at a given date. ?date=ISO</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/search</td><td class="file-ref">search_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>?q=&mode=fulltext|semantic|concept</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/dashboard</td><td class="file-ref">search_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Stats + recent entries + prompts + questions.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/export</td><td class="file-ref">export_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>?format=json|markdown|graph — downloads file.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/biography</td><td class="file-ref">biography_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Eligibility check (10+ entries).</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/biography/generate</td><td class="file-ref">biography_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td><strong>SSE stream.</strong> 7-pass pipeline. Rate-limited 12h/period.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/biography/stream</td><td class="file-ref">biography_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Alt SSE endpoint (token via query param).</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/biography/save</td><td class="file-ref">biography_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Persist biography to Neo4j.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/biography/history</td><td class="file-ref">biography_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>All previous biographies for user.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/reminders/prompts</td><td class="file-ref">reminders_sharing_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>AI-generated reflection prompts.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/reminders/generate</td><td class="file-ref">reminders_sharing_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Generate new prompts on demand.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/reminders/digest</td><td class="file-ref">reminders_sharing_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>This week's digest preview data.</td></tr>
+        <tr><td class="method-put mono">PUT</td><td class="endpoint">/reminders/settings</td><td class="file-ref">reminders_sharing_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Save prompt preferences.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/shares</td><td class="file-ref">reminders_sharing_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Active share links + access logs.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/shares</td><td class="file-ref">reminders_sharing_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Create share token.</td></tr>
+        <tr><td class="method-delete mono">DELETE</td><td class="endpoint">/shares/{id}</td><td class="file-ref">reminders_sharing_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Revoke share token.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/shared/{token}</td><td class="file-ref">reminders_sharing_api.py</td><td style="color:var(--green);font-size:11px">open</td><td><strong>Public.</strong> Shared read-only graph view.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/shared/{token}/annotate</td><td class="file-ref">reminders_sharing_api.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Therapist adds annotation to shared graph.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/transcribe</td><td class="file-ref">transcribe.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Audio file → Whisper → transcript string.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/digest/settings</td><td class="file-ref">digest.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Digest preferences.</td></tr>
+        <tr><td class="method-put mono">PUT</td><td class="endpoint">/digest/settings</td><td class="file-ref">digest.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Update day/hour/enabled.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/digest/preview</td><td class="file-ref">digest.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Generate HTML preview without sending.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/digest/test</td><td class="file-ref">digest.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Send real test email to current user now.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/digest/unsubscribe</td><td class="file-ref">digest.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Disable digest emails.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/digest/send-now</td><td class="file-ref">digest.py</td><td style="color:var(--red);font-size:11px">admin key</td><td>Trigger all-user digest run immediately.</td></tr>
+        <tr><td class="method-post mono">POST</td><td class="endpoint">/import/limitless</td><td class="file-ref">limitless_import.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Upload archive → start background job → return job_id.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/import/limitless/status/{id}</td><td class="file-ref">limitless_import.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Poll job progress.</td></tr>
+        <tr><td class="method-get mono">GET</td><td class="endpoint">/import/limitless/history</td><td class="file-ref">limitless_import.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>All imports for this user.</td></tr>
+        <tr><td class="method-delete mono">DELETE</td><td class="endpoint">/import/limitless/{id}</td><td class="file-ref">limitless_import.py</td><td style="color:var(--amber);font-size:11px">JWT</td><td>Delete import batch and its entries.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="dataflow">
+  <div class="section-label">Section 5</div>
+  <div class="section-title">Full Data Flow Traces</div>
+  <div class="section-desc">End-to-end traces for the three most important user actions. Every hop shown.</div>
+
+  <div id="df-entry" style="margin-bottom:40px">
+    <div class="section-label" style="margin-bottom:12px">Writing and saving a journal entry</div>
+    <table class="conn-table">
+      <thead><tr><th>#</th><th>Layer</th><th>File</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--muted)">1</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">ThoughtBiography.jsx</td><td>User types. Presses Cmd+Enter. handleSave() fires.</td></tr>
+        <tr><td style="color:var(--muted)">2</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">Auth.jsx — authFetch</td><td>authFetch injects Bearer token into POST /entries headers.</td></tr>
+        <tr><td style="color:var(--muted)">3</td><td style="color:var(--green)">Backend</td><td class="file-ref">api.py</td><td>get_current_user() validates JWT → extracts user_id.</td></tr>
+        <tr><td style="color:var(--muted)">4</td><td style="color:var(--green)">Backend</td><td class="file-ref">encryption.py</td><td>encrypt(content, key_from_password) → AES-256-GCM ciphertext.</td></tr>
+        <tr><td style="color:var(--muted)">5</td><td style="color:var(--purple)">Database</td><td class="file-ref">Neo4j</td><td>CREATE (:Entry {id, user_id, content: ciphertext, ...}) CREATE (u)-[:AUTHORED]->(e)</td></tr>
+        <tr><td style="color:var(--muted)">6</td><td style="color:var(--amber)">External</td><td class="file-ref">Anthropic Claude</td><td>claude-sonnet extracts concepts, influences, summary from plaintext.</td></tr>
+        <tr><td style="color:var(--muted)">7</td><td style="color:var(--purple)">Database</td><td class="file-ref">Neo4j</td><td>MERGE (:Concept) ON CREATE/ON MATCH — create or update concept node. CREATE (e)-[:CONTAINS {sentiment, importance, framing}]->(c)</td></tr>
+        <tr><td style="color:var(--muted)">8</td><td style="color:var(--green)">Backend</td><td class="file-ref">api.py</td><td>Response: {id, content (plaintext), concepts: [...], ai_summary}</td></tr>
+        <tr><td style="color:var(--muted)">9</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">ThoughtBiography.jsx</td><td>Prepend new entry to list. Show concept chips on the card. Increment entry counter.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="df-bio" style="margin-bottom:40px">
+    <div class="section-label" style="margin-bottom:12px">Generating a biography (SSE stream)</div>
+    <table class="conn-table">
+      <thead><tr><th>#</th><th>Layer</th><th>File</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--muted)">1</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">BiographyDocument.jsx</td><td>User clicks "Generate". POST /biography/generate sent. EventSource opened.</td></tr>
+        <tr><td style="color:var(--muted)">2</td><td style="color:var(--green)">Backend</td><td class="file-ref">biography_api.py</td><td>Check rate limit (12h). Returns 429 if too soon. Otherwise opens SSE StreamingResponse.</td></tr>
+        <tr><td style="color:var(--muted)">3</td><td style="color:var(--green)">Backend</td><td class="file-ref">biography_generator.py</td><td>pull_graph_data() — queries Neo4j for concepts, contradictions, influences, oldest/newest entries.</td></tr>
+        <tr><td style="color:var(--muted)">4</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">BiographyDocument.jsx</td><td>SSE event: {type:"progress", pass:1, label:"Reading your concepts...", pct:10} → progress bar 10%</td></tr>
+        <tr><td style="color:var(--muted)">5</td><td style="color:var(--amber)">External</td><td class="file-ref">Claude Sonnet (×4)</td><td>Passes 1-4: structure, arc, contradictions, voice calibration.</td></tr>
+        <tr><td style="color:var(--muted)">6</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">BiographyDocument.jsx</td><td>Progress events at each pass. Bar advances 10→25→40→52%</td></tr>
+        <tr><td style="color:var(--muted)">7</td><td style="color:var(--amber)">External</td><td class="file-ref">Claude Opus</td><td>Pass 5: first full biography draft. 150-220 words.</td></tr>
+        <tr><td style="color:var(--muted)">8</td><td style="color:var(--amber)">External</td><td class="file-ref">Claude Sonnet</td><td>Pass 6: truth check against raw entries. Flags overstated claims.</td></tr>
+        <tr><td style="color:var(--muted)">9</td><td style="color:var(--amber)">External</td><td class="file-ref">Claude Opus</td><td>Pass 7: final prose. Tighten, elevate, check rhythm.</td></tr>
+        <tr><td style="color:var(--muted)">10</td><td style="color:var(--green)">Backend</td><td class="file-ref">biography_api.py</td><td>SSE event: {type:"complete", biography:"...", flags:[...]} → save to Neo4j.</td></tr>
+        <tr><td style="color:var(--muted)">11</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">BiographyDocument.jsx</td><td>Biography text renders in literary serif. History sidebar updates.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="df-auth">
+    <div class="section-label" style="margin-bottom:12px">Authentication lifecycle</div>
+    <table class="conn-table">
+      <thead><tr><th>#</th><th>Layer</th><th>File</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--muted)">1</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">Root.jsx</td><td>AuthStorage.isLoggedIn() → false → render Auth.jsx</td></tr>
+        <tr><td style="color:var(--muted)">2</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">Auth.jsx</td><td>User submits login. POST /auth/login.</td></tr>
+        <tr><td style="color:var(--muted)">3</td><td style="color:var(--green)">Backend</td><td class="file-ref">auth.py</td><td>bcrypt.verify(password, hash). If valid: create access_token (24h JWT) + refresh_token (30d JWT).</td></tr>
+        <tr><td style="color:var(--muted)">4</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">Auth.jsx — AuthStorage</td><td>sessionStorage.set('tb_access', token). localStorage.set('tb_refresh', refresh). Call onAuthenticated(user).</td></tr>
+        <tr><td style="color:var(--muted)">5</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">Root.jsx</td><td>localStorage.getItem('tb_onboarded') ? → App : → Onboarding</td></tr>
+        <tr><td style="color:var(--muted)">6</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">Auth.jsx — authFetch</td><td>Every subsequent request: injects Authorization: Bearer access_token automatically.</td></tr>
+        <tr><td style="color:var(--muted)">7</td><td style="color:var(--green)">Backend</td><td class="file-ref">auth.py</td><td>On 401: access_token expired. authFetch auto-calls POST /auth/refresh.</td></tr>
+        <tr><td style="color:var(--muted)">8</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">Auth.jsx — authFetch</td><td>New access_token saved. Original request retried transparently.</td></tr>
+        <tr><td style="color:var(--muted)">9</td><td style="color:var(--blue)">Frontend</td><td class="file-ref">App.jsx</td><td>Logout: AuthStorage.clear() → sessionStorage + localStorage cleared → setAuthed(false) → Auth.jsx shown.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</section>
+
+</main>
+</div>
+
+</body>
+</html>

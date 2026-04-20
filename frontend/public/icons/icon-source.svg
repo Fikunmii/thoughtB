@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0f0e0b"/>
+
+  <!-- Outer ring — subtle gold circle -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#c8a96e" stroke-width="3" opacity="0.3"/>
+
+  <!-- Graph nodes — three concept dots connected by lines -->
+  <!-- Centre node -->
+  <circle cx="256" cy="230" r="22" fill="#c8a96e" opacity="0.95"/>
+
+  <!-- Top-left node -->
+  <circle cx="160" cy="168" r="14" fill="#c8a96e" opacity="0.6"/>
+
+  <!-- Top-right node -->
+  <circle cx="352" cy="168" r="14" fill="#c8a96e" opacity="0.6"/>
+
+  <!-- Bottom-left node -->
+  <circle cx="168" cy="320" r="10" fill="#c8a96e" opacity="0.4"/>
+
+  <!-- Bottom-right node -->
+  <circle cx="344" cy="320" r="10" fill="#c8a96e" opacity="0.4"/>
+
+  <!-- Bottom centre node -->
+  <circle cx="256" cy="360" r="12" fill="#c8a96e" opacity="0.5"/>
+
+  <!-- Connecting edges — centre to outer nodes -->
+  <line x1="256" y1="230" x2="160" y2="168" stroke="#c8a96e" stroke-width="2" opacity="0.45"/>
+  <line x1="256" y1="230" x2="352" y2="168" stroke="#c8a96e" stroke-width="2" opacity="0.45"/>
+  <line x1="256" y1="230" x2="168" y2="320" stroke="#c8a96e" stroke-width="2" opacity="0.35"/>
+  <line x1="256" y1="230" x2="344" y2="320" stroke="#c8a96e" stroke-width="2" opacity="0.35"/>
+  <line x1="256" y1="230" x2="256" y2="360" stroke="#c8a96e" stroke-width="2" opacity="0.4"/>
+
+  <!-- Cross-edges -->
+  <line x1="160" y1="168" x2="352" y2="168" stroke="#c8a96e" stroke-width="1.5" opacity="0.2"/>
+  <line x1="168" y1="320" x2="344" y2="320" stroke="#c8a96e" stroke-width="1.5" opacity="0.2"/>
+
+  <!-- Inner dot on centre node — adds depth -->
+  <circle cx="256" cy="230" r="8" fill="#0f0e0b" opacity="0.5"/>
+</svg>

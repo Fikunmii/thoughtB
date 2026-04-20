@@ -1,0 +1,37 @@
+# Thought Biography — Python backend dependencies
+# Install: pip install -r requirements.txt
+
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9       # required for file uploads (transcribe, import)
+
+# ── Database ──────────────────────────────────────────────────────────────────
+neo4j>=5.19.0
+
+# ── AI ────────────────────────────────────────────────────────────────────────
+anthropic>=0.28.0             # Claude API (concept extraction, biography, digest)
+openai>=1.30.0                # Whisper transcription only
+
+# ── Auth & security ───────────────────────────────────────────────────────────
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.1.0
+
+# ── Data validation ───────────────────────────────────────────────────────────
+pydantic[email]>=2.7.0        # EmailStr requires email-validator
+email-validator>=2.1.0
+
+# ── Scheduling (digest) ───────────────────────────────────────────────────────
+apscheduler>=3.10.0
+
+# ── Email (digest) ────────────────────────────────────────────────────────────
+# Uses stdlib smtplib — no additional package needed
+
+# ── Environment ───────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+
+# ── Dev / testing ─────────────────────────────────────────────────────────────
+httpx>=0.27.0                 # for FastAPI TestClient
+pytest>=8.2.0
+pytest-asyncio>=0.23.0
