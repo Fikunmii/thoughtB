@@ -12,4 +12,4 @@ RUN npm install -g serve
 
 EXPOSE 8080
 
-CMD ["serve", "dist", "-l", "8080"]
+CMD ["serve", "dist", "--port", "8080"]
