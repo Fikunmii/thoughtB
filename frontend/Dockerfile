@@ -8,8 +8,8 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-RUN npm install -g serve
+RUN npm install -g http-server
 
 EXPOSE 8080
 
-CMD ["serve", "dist", "--port", "8080"]
+CMD ["http-server", "dist", "-p", "8080", "--proxy", "http://localhost:8080?"]
