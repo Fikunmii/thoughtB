@@ -162,11 +162,20 @@ def get_dashboard_data(user_id: str) -> dict:
             MATCH (e:Entry)-[:BELONGS_TO]->(:User {id: $uid})
             WHERE e.open_question IS NOT NULL
             OPTIONAL MATCH (e)-[:SURFACES]->(c:Concept)
-            RETURN e.open_question AS question, e.created_at AS entry_date,
+            RETURN e.open_question AS question, toString(e.created_at) AS entry_date,
                    collect(c.label)[0] AS concept
-            ORDER BY e.created_at DESC LIMIT 5
+            ORDER BY e.created_at DESC LIMIT 20
         """, uid=user_id)
-        open_questions = [dict(r) for r in oq]
+        seen_questions = set()
+        open_questions = []
+        for r in oq:
+            row = dict(r)
+            if row["question"] in seen_questions:
+                continue
+            seen_questions.add(row["question"])
+            open_questions.append(row)
+            if len(open_questions) == 5:
+                break
 
         # Contradictions
         contra = session.run("""

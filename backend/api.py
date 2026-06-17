@@ -206,20 +206,7 @@ def create_entry(
              word_count=len(req.content.split()))
 
     # ── Step 2: Extract structure via Claude ──────────────────────────────────
-    extraction = {
-        "significance_score": 0.75,
-        "emotional_tone": "searching",
-        "concepts": [
-            {"label": "Freedom", "weight": 0.9, "context_snippet": "freedom and what it means", "is_new_definition": False, "definition_note": None},
-            {"label": "Meaning", "weight": 0.85, "context_snippet": "meaning and purpose", "is_new_definition": False, "definition_note": None}
-        ],
-        "people_mentioned": ["Viktor Frankl"],
-        "sources_referenced": [],
-        "contradicts_concepts": [],
-        "reinforces_concepts": ["Purpose"],
-        "open_question": "What does it mean to truly choose your own path?",
-        "life_context_hint": None
-    }
+    extraction = extract_with_claude(req.content)
 
     # ── Step 3: Write extracted data to graph ─────────────────────────────────
     write_extraction_to_graph(uid, entry_id, extraction)
@@ -415,15 +402,67 @@ def list_concepts(
         result = s.run(f"""
             MATCH (c:Concept)-[:BELONGS_TO]->(:User {{id: $uid}})
             WHERE 1=1 {where}
-            RETURN c ORDER BY c.frequency DESC
+            OPTIONAL MATCH (e:Entry)-[r:SURFACES]->(c)
+            WITH c, count(e) AS entry_count,
+                 collect(CASE WHEN e IS NOT NULL THEN {{date: toString(e.created_at), score: r.weight}} ELSE null END) AS raw_points
+            RETURN c, entry_count, raw_points ORDER BY c.frequency DESC
         """, uid=uid)
         concepts = []
         for r in result:
             c = dict(r["c"])
             c["first_seen"] = str(c.get("first_seen", ""))
             c["last_seen"]  = str(c.get("last_seen",  ""))
+            c["entry_count"] = r["entry_count"]
+            points = [p for p in (r["raw_points"] or []) if p and p.get("date")]
+            points.sort(key=lambda p: p["date"])
+            c["drift_points"] = points or None
             concepts.append(c)
     return {"concepts": concepts}
+
+
+@app.get("/concepts/{label}/drift", tags=["concepts"])
+def get_concept_drift(
+    label: str,
+    current_user: dict = Depends(get_current_user),
+):
+    uid = current_user["user_id"]
+    with driver.session() as s:
+        result = s.run("""
+            MATCH (c:Concept {label: $label})-[:BELONGS_TO]->(:User {id: $uid})
+            OPTIONAL MATCH (e:Entry)-[r:SURFACES]->(c)
+            WITH c, collect(CASE WHEN e IS NOT NULL THEN {date: toString(e.created_at), score: r.weight} ELSE null END) AS raw_points
+            RETURN c, raw_points
+        """, label=label, uid=uid).single()
+
+        if not result:
+            raise HTTPException(status_code=404, detail="Concept not found")
+
+        concept = dict(result["c"])
+        points = [p for p in (result["raw_points"] or []) if p and p.get("date")]
+        points.sort(key=lambda p: p["date"])
+
+        stability = concept.get("stability_score")
+        stability = 1.0 if stability is None else stability
+        if stability >= 0.75:
+            direction = "stable"
+        elif stability >= 0.45:
+            direction = "shifting"
+        else:
+            direction = "transforming"
+
+        narratives = {
+            "stable": f"Your framing of {label} has been remarkably consistent across your entries.",
+            "shifting": f"Your understanding of {label} has been moving in one direction across your entries.",
+            "transforming": f"{label} has undergone a significant reframing across your entries.",
+        }
+
+    return {
+        "concept": label,
+        "points": points,
+        "overall_direction": direction,
+        "narrative": narratives[direction],
+        "inflection_points": [],
+    }
 
 
 @app.get("/concepts/{label}", tags=["concepts"])

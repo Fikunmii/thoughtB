@@ -178,7 +178,7 @@ export default function Dashboard({ onNavigate, user }) {
         <div style={{ fontSize: 28, fontStyle: "italic", color: C.gold }}>
           {greeting}, {name}.
         </div>
-        {d.last_entry_ago && (
+        {d.last_entry_ago != null && (
           <div style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>
             {d.last_entry_ago === 0
               ? "You wrote today. Your graph is current."
