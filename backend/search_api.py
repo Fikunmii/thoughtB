@@ -242,4 +242,3 @@ def dashboard(current_user: dict = Depends(get_current_user)):
 
 def register_search_routes(app):
     app.include_router(router)
-
