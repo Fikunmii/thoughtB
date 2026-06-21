@@ -15,9 +15,9 @@ load_dotenv()
 
 router = APIRouter(tags=["search"])
 
-NEO4J_URI  = os.getenv("NEO4J_URI",      "bolt://localhost:7687")
-NEO4J_USER = os.getenv("NEO4J_USER",     "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "yourpassword")
+NEO4J_URI  = os.getenv("NEO4J_URI",      "bolt://neo4j+s://b18adf80.databases.neo4j.io")
+NEO4J_USER = os.getenv("NEO4J_USER",     "b18adf80")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "quECs8RUEzmD2bv2YIWyw1cvp5Dq-I953SEOJUoggU8")
 driver     = GraphDatabase.driver(
     NEO4J_URI,
     auth=(NEO4J_USER, NEO4J_PASSWORD)
