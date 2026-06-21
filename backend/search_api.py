@@ -162,8 +162,9 @@ def get_dashboard_data(user_id: str) -> dict:
             MATCH (e:Entry)-[:BELONGS_TO]->(:User {id: $uid})
             WHERE e.open_question IS NOT NULL
             OPTIONAL MATCH (e)-[:SURFACES]->(c:Concept)
+            WITH e, collect(c.label)[0] AS concept
             RETURN e.open_question AS question, toString(e.created_at) AS entry_date,
-                   collect(c.label)[0] AS concept
+                   concept
             ORDER BY e.created_at DESC LIMIT 20
         """, uid=user_id)
         seen_questions = set()
