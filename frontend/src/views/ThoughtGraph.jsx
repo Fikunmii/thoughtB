@@ -206,11 +206,10 @@ export default function ThoughtGraph({ user, onNavigate }) {
       edges = edges.filter(e => e.type.toLowerCase().includes(filterType));
     }
 
-    // Visible nodes — only those connected by current edges
+    // Visible nodes — only those with edges (always, regardless of filter)
     const connectedIds = new Set(edges.flatMap(e => [e.source, e.target]));
-    let nodes = (graphData.nodes || []).filter(n =>
-      connectedIds.has(n.label) || filterType === "all"
-    );
+    let nodes = (graphData.nodes || []).filter(n => connectedIds.has(n.label));
+    // If no edges at all (empty graph), show everything
     if (nodes.length === 0) nodes = graphData.nodes || [];
 
     // Size scale — entry count drives node size

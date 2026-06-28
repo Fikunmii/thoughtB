@@ -378,14 +378,19 @@ def get_graph(current_user: dict = Depends(get_current_user)):
         tensions     = sum(1 for e in edges if e["type"] == "CONTRADICTS")
         reinforcing  = sum(1 for e in edges if e["type"] == "REINFORCES")
 
+        entry_count_r = s.run(
+            "MATCH (e:Entry {user_id: $uid}) RETURN count(e) AS n", uid=uid
+        ).single()
+        entry_count = entry_count_r["n"] if entry_count_r else 0
+
     return {
         "nodes": nodes,
         "edges": edges,
         "stats": {
-            "concepts":      len(nodes),
-            "entries":       len({e.get("via_entry") for e in edges if e.get("via_entry")}),
+            "concepts":       len(nodes),
+            "entries":        entry_count,
             "contradictions": tensions,
-            "reinforcing":   reinforcing,
+            "reinforcing":    reinforcing,
         }
     }
 
