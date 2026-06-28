@@ -45,70 +45,97 @@ function TensionBar({ score }) {
 }
 
 // ── Radial map using D3 ───────────────────────────────────────────────────────
-function RadialMap({ pairs, selected, onSelect }) {
+function RadialMap({ pairs, onSelect }) {
   const svgRef = useRef(null);
+  const [hoveredPair, setHoveredPair] = useState(null);
 
   useEffect(() => {
     if (!svgRef.current || !pairs.length) return;
-    const W = 420, H = 420, cx = W / 2, cy = H / 2, R = 150;
+    const W = 380, H = 380, cx = W / 2, cy = H / 2, R = 140;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
-    svg.attr("viewBox", `0 0 ${W} ${H}`);
+    svg.attr("viewBox", `0 0 ${W} ${H}`)
+       .attr("width", W).attr("height", H)
+       .style("display", "block");
 
-    // Collect unique concept nodes
     const nodeSet = new Set(pairs.flatMap(p => [p.concept_a, p.concept_b]));
     const nodeArr = Array.from(nodeSet);
-    const angle   = (i) => (i / nodeArr.length) * 2 * Math.PI - Math.PI / 2;
+    const angle = (i) => (i / nodeArr.length) * 2 * Math.PI - Math.PI / 2;
     const pos = (label) => {
       const i = nodeArr.indexOf(label);
       return { x: cx + R * Math.cos(angle(i)), y: cy + R * Math.sin(angle(i)) };
     };
 
-    // Draw edges
+    // Invisible hit-area lines (wider, easier to click)
     pairs.forEach(p => {
       const a = pos(p.concept_a), b = pos(p.concept_b);
-      const color = tensionColor(p.tension_score);
-      const isSelected = selected?.concept_a === p.concept_a && selected?.concept_b === p.concept_b;
       svg.append("line")
         .attr("x1", a.x).attr("y1", a.y)
         .attr("x2", b.x).attr("y2", b.y)
-        .attr("stroke", color)
-        .attr("stroke-width", isSelected ? 2 : 1)
-        .attr("stroke-opacity", isSelected ? 0.9 : 0.35)
+        .attr("stroke", "transparent")
+        .attr("stroke-width", 14)
         .style("cursor", "pointer")
-        .on("click", () => onSelect(p));
+        .on("click", (event) => { event.stopPropagation(); onSelect(p); });
     });
 
-    // Draw nodes
+    // Visible lines
+    pairs.forEach(p => {
+      const a = pos(p.concept_a), b = pos(p.concept_b);
+      svg.append("line")
+        .attr("x1", a.x).attr("y1", a.y)
+        .attr("x2", b.x).attr("y2", b.y)
+        .attr("stroke", tensionColor(p.tension_score))
+        .attr("stroke-width", 1.5)
+        .attr("stroke-opacity", 0.5)
+        .style("pointer-events", "none");
+    });
+
+    // Nodes — large hit area + visible circle
     nodeArr.forEach(label => {
       const { x, y } = pos(label);
-      const isInSelected = selected && (selected.concept_a === label || selected.concept_b === label);
-
+      const pairs_for_node = pairs.filter(p => p.concept_a === label || p.concept_b === label);
       const g = svg.append("g").style("cursor", "pointer");
 
+      // Invisible large hit area
       g.append("circle")
-        .attr("cx", x).attr("cy", y).attr("r", isInSelected ? 8 : 6)
-        .attr("fill", isInSelected ? C.gold : "rgba(200,169,110,0.3)")
-        .attr("stroke", C.gold).attr("stroke-width", isInSelected ? 1.5 : 0.5)
-        .attr("stroke-opacity", 0.6);
+        .attr("cx", x).attr("cy", y).attr("r", 20)
+        .attr("fill", "transparent")
+        .on("click", (event) => {
+          event.stopPropagation();
+          // Select the highest-tension pair involving this node
+          const best = pairs_for_node.sort((a,b) => b.tension_score - a.tension_score)[0];
+          if (best) onSelect(best);
+        });
+
+      // Visible circle
+      g.append("circle")
+        .attr("cx", x).attr("cy", y).attr("r", 7)
+        .attr("fill", "rgba(200,169,110,0.35)")
+        .attr("stroke", C.gold).attr("stroke-width", 1)
+        .style("pointer-events", "none");
 
       const textAnchor = x < cx - 10 ? "end" : x > cx + 10 ? "start" : "middle";
-      const dx = x < cx - 10 ? -12 : x > cx + 10 ? 12 : 0;
-      const dy = y < cy - 10 ? -12 : 14;
+      const dx = x < cx - 10 ? -14 : x > cx + 10 ? 14 : 0;
+      const dy = y < cy - 10 ? -14 : 16;
 
       g.append("text")
-        .text(label.length > 16 ? label.slice(0, 14) + "…" : label)
+        .text(label.length > 18 ? label.slice(0, 16) + "…" : label)
         .attr("x", x + dx).attr("y", y + dy)
         .attr("text-anchor", textAnchor)
         .attr("font-size", 11)
         .attr("font-family", "'EB Garamond', Georgia, serif")
-        .attr("fill", isInSelected ? C.gold : C.goldMuted);
+        .attr("fill", C.goldMuted)
+        .style("pointer-events", "none");
     });
 
-  }, [pairs]); // intentionally excludes selected — re-renders break click events
+  }, [pairs, onSelect]);
 
-  return <svg ref={svgRef} style={{ width: "100%", maxWidth: 420 }} />;
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
+      <svg ref={svgRef} />
+    </div>
+  );
 }
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
@@ -332,7 +359,7 @@ export default function ContradictionWorkflow({ user, onNavigate }) {
 
         {view === "map" ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-            <RadialMap pairs={pairs} selected={selected} onSelect={setSelected} />
+            <RadialMap pairs={pairs} onSelect={setSelected} />
           </div>
         ) : (
           <div style={{ flex: 1, overflowY: "auto" }}>
