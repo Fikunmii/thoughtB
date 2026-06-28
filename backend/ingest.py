@@ -218,47 +218,68 @@ class ThoughtGraphWriter:
             if concept_labels:
                 print(f"  ✓ Concepts: {', '.join(concept_labels)}")
             
-            # 3. Create/merge Person nodes + INTRODUCED edges
+            # 3. Create/merge Person nodes + INTRODUCED edges to concepts
+            concept_labels = [c["label"] for c in structured.get("concepts", [])]
             for person_name in structured.get("people_mentioned", []):
                 if not person_name.strip():
                     continue
                 session.run("""
-                    MERGE (p:Person {name: $name})
+                    MERGE (p:Person {name: $name, user_id: $uid})
                     ON CREATE SET
                         p.id = $id,
                         p.first_mentioned = $now,
                         p.influence_weight = 0.0,
-                        p.type = 'unknown'
+                        p.type = 'Person'
                     WITH p
                     MATCH (e:Entry {id: $entry_id})
                     MERGE (e)-[:MENTIONS {at: $now}]->(p)
                 """, {
                     "name": person_name,
+                    "uid": user_id,
                     "id": str(uuid.uuid4()),
                     "now": now,
                     "entry_id": entry_id
                 })
+                # Link person to concepts introduced in this entry
+                for clabel in concept_labels:
+                    session.run("""
+                        MATCH (p:Person {name: $name, user_id: $uid})
+                        MERGE (c:Concept {label: $label, user_id: $uid})
+                        MERGE (p)-[:INTRODUCED]->(c)
+                        WITH p
+                        SET p.influence_weight = coalesce(p.influence_weight, 0.0) + 0.1
+                    """, {"name": person_name, "uid": user_id, "label": clabel})
             
-            # 4. Create/merge Source nodes + REFERENCED edges
+            # 4. Create/merge Source nodes + CATALYZED edges to concepts
             for source_title in structured.get("sources_referenced", []):
                 if not source_title.strip():
                     continue
                 session.run("""
-                    MERGE (s:Source {title: $title})
+                    MERGE (s:Source {title: $title, user_id: $uid})
                     ON CREATE SET
                         s.id = $id,
                         s.consumed_at = $now,
                         s.impact_score = 0.0,
-                        s.type = 'unknown'
+                        s.type = 'Book'
                     WITH s
                     MATCH (e:Entry {id: $entry_id})
                     MERGE (e)-[:REFERENCES {at: $now}]->(s)
                 """, {
                     "title": source_title,
+                    "uid": user_id,
                     "id": str(uuid.uuid4()),
                     "now": now,
                     "entry_id": entry_id
                 })
+                # Link source to concepts it catalyzed in this entry
+                for clabel in concept_labels:
+                    session.run("""
+                        MATCH (s:Source {title: $title, user_id: $uid})
+                        MERGE (c:Concept {label: $label, user_id: $uid})
+                        MERGE (s)-[:CATALYZED]->(c)
+                        WITH s
+                        SET s.influence_weight = coalesce(s.influence_weight, 0.0) + 0.1
+                    """, {"title": source_title, "uid": user_id, "label": clabel})
             
             # 5. Create REINFORCES edges between concepts
             main_concepts = [c["label"] for c in structured.get("concepts", [])]

@@ -534,30 +534,75 @@ def get_concept(
 def get_influence_trees(current_user: dict = Depends(get_current_user)):
     uid = current_user["user_id"]
     with driver.session() as s:
+        # Primary: Person/Source nodes with INTRODUCED/CATALYZED edges (new data)
         result = s.run("""
             MATCH (p)-[:INTRODUCED|CATALYZED]->(c:Concept)
             WHERE p.user_id = $uid OR c.user_id = $uid
-            WITH p, collect({
-                id:    c.id,
+            WITH p, collect(DISTINCT {
+                id:    coalesce(c.id, c.label),
                 label: c.label,
                 weight: coalesce(p.influence_weight, 0.5)
             }) AS concepts
             RETURN
-                p.id               AS id,
-                coalesce(p.name, p.title) AS name,
-                labels(p)[0]       AS type,
-                p.influence_weight AS impact_score,
-                p.first_mentioned  AS first_mentioned,
+                coalesce(p.id, p.name, p.title) AS id,
+                coalesce(p.name, p.title)        AS name,
+                labels(p)[0]                     AS type,
+                coalesce(p.influence_weight, size(concepts) * 0.1) AS impact_score,
+                coalesce(p.first_mentioned, p.consumed_at) AS first_mentioned,
                 concepts
-            ORDER BY p.influence_weight DESC
+            ORDER BY impact_score DESC
         """, uid=uid)
 
         influences = []
+        seen = set()
         for r in result:
             inf = dict(r)
             inf["first_mentioned"] = str(inf.get("first_mentioned") or "")
-            inf["impact_score"]    = inf.get("impact_score") or 0.5
-            influences.append(inf)
+            inf["impact_score"]    = float(inf.get("impact_score") or 0.5)
+            key = inf.get("name") or inf.get("id")
+            if key and key not in seen:
+                seen.add(key)
+                influences.append(inf)
+
+        # Fallback: Person nodes connected via MENTIONS to entries (older data)
+        if not influences:
+            result2 = s.run("""
+                MATCH (e:Entry {user_id: $uid})-[:MENTIONS]->(p:Person)
+                WITH p, count(DISTINCT e) AS mention_count
+                OPTIONAL MATCH (e2:Entry {user_id: $uid})-[:MENTIONS]->(p)
+                WITH p, mention_count
+                RETURN
+                    coalesce(p.id, p.name) AS id,
+                    p.name                 AS name,
+                    'Person'               AS type,
+                    mention_count * 0.2    AS impact_score,
+                    p.first_mentioned      AS first_mentioned,
+                    []                     AS concepts
+                ORDER BY mention_count DESC
+            """, uid=uid)
+            for r in result2:
+                inf = dict(r)
+                inf["first_mentioned"] = str(inf.get("first_mentioned") or "")
+                inf["impact_score"]    = float(inf.get("impact_score") or 0.1)
+                influences.append(inf)
+
+            result3 = s.run("""
+                MATCH (e:Entry {user_id: $uid})-[:REFERENCES]->(s:Source)
+                WITH s, count(DISTINCT e) AS ref_count
+                RETURN
+                    coalesce(s.id, s.title) AS id,
+                    s.title                 AS name,
+                    'Book'                  AS type,
+                    ref_count * 0.2         AS impact_score,
+                    s.consumed_at           AS first_mentioned,
+                    []                      AS concepts
+                ORDER BY ref_count DESC
+            """, uid=uid)
+            for r in result3:
+                inf = dict(r)
+                inf["first_mentioned"] = str(inf.get("first_mentioned") or "")
+                inf["impact_score"]    = float(inf.get("impact_score") or 0.1)
+                influences.append(inf)
 
     return {"influences": influences}
 
@@ -764,19 +809,37 @@ def write_extraction_to_graph(user_id: str, entry_id: str, extraction: dict):
                         r.via_entry = $eid,
                         r.at        = datetime(),
                         r.user_id   = $uid
+                    WITH p
+                    SET p.influence_weight = coalesce(p.influence_weight, 0.0) + 0.1
                 """, name=name, label=concept.get("label"), uid=user_id, eid=entry_id)
 
-        # Source nodes
+        # Source nodes + CATALYZED edges to concepts
         for title in extraction.get("sources_referenced", []):
             s.run("""
                 MERGE (src:Source {title: $title, user_id: $uid})
                 ON CREATE SET
-                    src.id          = $sid,
-                    src.type        = 'book',
-                    src.consumed_at = datetime(),
-                    src.impact_score = 0.0,
-                    src.user_id     = $uid
+                    src.id             = $sid,
+                    src.type           = 'Book',
+                    src.consumed_at    = datetime(),
+                    src.influence_weight = 0.0,
+                    src.user_id        = $uid
             """, title=title, uid=user_id, sid=str(uuid.uuid4()))
+
+            for concept in extraction.get("concepts", []):
+                clabel = concept.get("label", "").strip()
+                if not clabel:
+                    continue
+                s.run("""
+                    MATCH (src:Source {title: $title, user_id: $uid})
+                    MATCH (c:Concept {label: $label, user_id: $uid})
+                    MERGE (src)-[r:CATALYZED]->(c)
+                    ON CREATE SET
+                        r.via_entry = $eid,
+                        r.at        = datetime(),
+                        r.user_id   = $uid
+                    WITH src
+                    SET src.influence_weight = coalesce(src.influence_weight, 0.0) + 0.1
+                """, title=title, label=clabel, uid=user_id, eid=entry_id)
 
         # Life context
         if extraction.get("life_context_hint"):
