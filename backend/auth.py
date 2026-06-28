@@ -133,9 +133,12 @@ def get_user_by_id(user_id: str) -> dict | None:
 
 def setup_user_indexes():
     """Run once at startup."""
-    with driver.session() as session:
-        session.run("CREATE CONSTRAINT user_email_unique IF NOT EXISTS FOR (u:User) REQUIRE u.email IS UNIQUE")
-        session.run("CREATE INDEX user_id IF NOT EXISTS FOR (u:User) ON (u.id)")
+    try:
+        with driver.session() as session:
+            session.run("CREATE CONSTRAINT user_email_unique IF NOT EXISTS FOR (u:User) REQUIRE u.email IS UNIQUE")
+            session.run("CREATE INDEX user_id IF NOT EXISTS FOR (u:User) ON (u.id)")
+    except Exception as e:
+        print(f"⚠ Neo4j index setup failed (DB may be unavailable): {e}")
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
