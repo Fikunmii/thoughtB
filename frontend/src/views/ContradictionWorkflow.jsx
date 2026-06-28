@@ -147,7 +147,9 @@ function DetailPanel({ pair, onResolved }) {
   const handleResolve = async () => {
     const note = chosenPath
       ? `${chosenPath.title}: ${chosenPath.description}${customNote ? " — " + customNote : ""}`
-      : customNote || "Marked as resolved.";
+      : customNote.trim() || (analysis?.resolution_paths?.[0]
+          ? `${analysis.resolution_paths[0].title}: ${analysis.resolution_paths[0].description}`
+          : "Acknowledged and resolved.");
     setResolving(true);
     try {
       await authFetch(`${API}/contradictions/resolve`, {
@@ -245,13 +247,13 @@ function DetailPanel({ pair, onResolved }) {
       {/* Resolve button */}
       <button
         onClick={handleResolve}
-        disabled={resolving || analyzing || (!chosenPath && !customNote.trim())}
+        disabled={resolving || analyzing}
         style={{
           width: "100%", padding: "10px 0",
-          background: (chosenPath || customNote.trim()) ? C.gold : "transparent",
+          background: analyzing ? "transparent" : C.gold,
           border: `1px solid ${C.gold}`, borderRadius: 3,
-          color: (chosenPath || customNote.trim()) ? "#1a1510" : C.goldMuted,
-          fontSize: 13, cursor: (resolving || analyzing || (!chosenPath && !customNote.trim())) ? "not-allowed" : "pointer",
+          color: analyzing ? C.goldMuted : "#1a1510",
+          fontSize: 13, cursor: (resolving || analyzing) ? "not-allowed" : "pointer",
           fontFamily: "'EB Garamond', Georgia, serif", letterSpacing: "0.08em",
         }}
       >
@@ -276,13 +278,21 @@ export default function ContradictionWorkflow({ user, onNavigate }) {
       .then(d => {
         // Extract contradiction pairs from full graph
         const contradictions = (d.edges || [])
-          .filter(e => e.type === "CONTRADICTS")
+          .filter(e => e.type === "CONTRADICTS" && e.source !== e.target)
           .map(e => ({
             concept_a:    e.source,
             concept_b:    e.target,
             tension_score: e.tension_score || e.weight || 0.5,
           }));
-        setPairs(contradictions.length ? contradictions : MOCK_PAIRS);
+        // Deduplicate (A⟷B same as B⟷A)
+        const seen = new Set();
+        const unique = contradictions.filter(p => {
+          const key = [p.concept_a, p.concept_b].sort().join("|||");
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setPairs(unique.length ? unique : MOCK_PAIRS);
       })
       .catch(() => setPairs(MOCK_PAIRS))
       .finally(() => setLoading(false));

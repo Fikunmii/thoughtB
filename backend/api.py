@@ -359,7 +359,7 @@ def get_graph(current_user: dict = Depends(get_current_user)):
         # Edges — filter by user_id on concepts, use label for D3 matching
         edges_r = s.run("""
             MATCH (a:Concept {user_id: $uid})-[r:REINFORCES|CONTRADICTS|EVOLVED_INTO]->(b:Concept {user_id: $uid})
-            WHERE NOT coalesce(r.resolved, false)
+            WHERE NOT coalesce(r.resolved, false) AND a.label <> b.label
             RETURN
                 a.label AS source,
                 b.label AS target,

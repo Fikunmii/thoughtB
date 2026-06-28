@@ -143,7 +143,7 @@ def get_dashboard_data(user_id: str) -> dict:
         for label, cypher in [
             ("entries",       "MATCH (e:Entry)-[:BELONGS_TO]->(:User {id: $uid}) RETURN count(e) AS n"),
             ("concepts",      "MATCH (c:Concept)-[:BELONGS_TO]->(:User {id: $uid}) RETURN count(c) AS n"),
-            ("contradictions","MATCH (:Concept)-[r:CONTRADICTS]-(:Concept) WHERE r.user_id = $uid RETURN count(r) AS n"),
+            ("contradictions","MATCH (a:Concept)-[r:CONTRADICTS]->(b:Concept) WHERE r.user_id = $uid AND NOT coalesce(r.resolved,false) AND a.label <> b.label RETURN count(r) AS n"),
             ("resolved",      "MATCH (:Concept)-[r:CONTRADICTS]-(:Concept) WHERE r.user_id = $uid AND r.resolved = true RETURN count(r) AS n"),
             ("influences",    "MATCH (p)-[:INTRODUCED|CATALYZED]->(:Concept) WHERE p.user_id = $uid RETURN count(DISTINCT p) AS n"),
         ]:
