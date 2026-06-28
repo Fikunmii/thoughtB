@@ -113,13 +113,28 @@ function RadialMap({ pairs, selected, onSelect }) {
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 function DetailPanel({ pair, onResolved }) {
-  const [resolving, setResolving] = useState(false);
-  const [resolved,  setResolved]  = useState(false);
-  const [note,      setNote]      = useState("");
-  const [showNote,  setShowNote]  = useState(false);
+  const [analysis,    setAnalysis]    = useState(null);
+  const [analyzing,   setAnalyzing]   = useState(false);
+  const [resolving,   setResolving]   = useState(false);
+  const [resolved,    setResolved]    = useState(false);
+  const [chosenPath,  setChosenPath]  = useState(null);
+  const [customNote,  setCustomNote]  = useState("");
 
-  // Reset when pair changes
-  useEffect(() => { setResolved(false); setNote(""); setShowNote(false); }, [pair]);
+  // Fetch analysis whenever pair changes
+  useEffect(() => {
+    setAnalysis(null); setResolved(false); setChosenPath(null); setCustomNote("");
+    if (!pair) return;
+    setAnalyzing(true);
+    authFetch(`${API}/contradictions/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ concept_a: pair.concept_a, concept_b: pair.concept_b }),
+    })
+      .then(r => r.json())
+      .then(d => setAnalysis(d))
+      .catch(() => setAnalysis({ why_contradiction: "Could not load analysis.", resolution_paths: [] }))
+      .finally(() => setAnalyzing(false));
+  }, [pair?.concept_a, pair?.concept_b]);
 
   if (!pair) {
     return (
@@ -130,16 +145,15 @@ function DetailPanel({ pair, onResolved }) {
   }
 
   const handleResolve = async () => {
+    const note = chosenPath
+      ? `${chosenPath.title}: ${chosenPath.description}${customNote ? " — " + customNote : ""}`
+      : customNote || "Marked as resolved.";
     setResolving(true);
     try {
       await authFetch(`${API}/contradictions/resolve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          concept_a:       pair.concept_a,
-          concept_b:       pair.concept_b,
-          resolution_note: note || "Marked as resolved.",
-        }),
+        body: JSON.stringify({ concept_a: pair.concept_a, concept_b: pair.concept_b, resolution_note: note }),
       });
       setResolved(true);
       onResolved?.(pair);
@@ -153,7 +167,7 @@ function DetailPanel({ pair, onResolved }) {
   if (resolved) {
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 12 }}>
-        <div style={{ fontSize: 28, color: C.gold }}>✓</div>
+        <div style={{ fontSize: 32, color: C.gold }}>✓</div>
         <div style={{ color: C.text, fontSize: 16, fontStyle: "italic" }}>Tension resolved</div>
         <div style={{ color: C.textMuted, fontSize: 12 }}>{pair.concept_a} ⟷ {pair.concept_b}</div>
       </div>
@@ -161,84 +175,88 @@ function DetailPanel({ pair, onResolved }) {
   }
 
   return (
-    <div style={{ flex: 1, padding: "28px 32px", animation: "cw-fade 0.3s ease" }}>
+    <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto", animation: "cw-fade 0.3s ease" }}>
+      {/* Header */}
       <div style={{ color: C.goldMuted, fontSize: 10, letterSpacing: "0.14em", marginBottom: 10 }}>ACTIVE TENSION</div>
-      <div style={{ fontSize: 22, color: C.text, fontStyle: "italic", marginBottom: 6 }}>
+      <div style={{ fontSize: 20, color: C.text, fontStyle: "italic", marginBottom: 8 }}>
         {pair.concept_a}
         <span style={{ color: C.goldMuted, fontSize: 14, margin: "0 10px" }}>⟷</span>
         {pair.concept_b}
       </div>
+      <div style={{ marginBottom: 20 }}><TensionBar score={pair.tension_score} /></div>
+
+      {/* Why it contradicts */}
       <div style={{ marginBottom: 20 }}>
-        <TensionBar score={pair.tension_score} />
-      </div>
-
-      {pair.evidence && (
-        <div style={{
-          padding: "14px 16px",
-          background: C.goldFaint, border: `1px solid ${C.border}`,
-          borderLeft: `3px solid ${tensionColor(pair.tension_score)}`,
-          borderRadius: 3, marginBottom: 20,
-        }}>
-          <div style={{ color: C.goldMuted, fontSize: 10, letterSpacing: "0.12em", marginBottom: 6 }}>WHY THIS IS A TENSION</div>
-          <div style={{ color: C.text, fontSize: 14, lineHeight: 1.7, fontStyle: "italic" }}>
-            {pair.evidence}
-          </div>
-        </div>
-      )}
-
-      {pair.detected_at && (
-        <div style={{ color: C.textMuted, fontSize: 11, marginBottom: 16 }}>
-          Detected: {new Date(pair.detected_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-        </div>
-      )}
-
-      <div style={{ marginTop: 8, padding: "16px 0", borderTop: `1px solid ${C.border}` }}>
-        <div style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.7, marginBottom: 16 }}>
-          This tension does not need to be resolved — many productive thinkers hold genuine contradictions.
-          The question is whether you are holding it <em style={{ color: C.text }}>consciously</em> or
-          being pulled by it without knowing.
-        </div>
-
-        {showNote ? (
-          <div style={{ marginBottom: 12 }}>
-            <textarea
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder="How did you resolve this tension? (optional)"
-              style={{
-                width: "100%", minHeight: 80, background: C.goldFaint,
-                border: `1px solid ${C.border}`, borderRadius: 3,
-                color: C.text, fontSize: 13, padding: "10px 12px",
-                fontFamily: "'EB Garamond', Georgia, serif", resize: "vertical",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-        ) : null}
-
-        <div style={{ display: "flex", gap: 10 }}>
-          {!showNote && (
-            <button onClick={() => setShowNote(true)} style={{
-              padding: "8px 16px", background: "transparent",
-              border: `1px solid ${C.border}`, borderRadius: 3,
-              color: C.goldMuted, fontSize: 12, cursor: "pointer",
-              fontFamily: "'EB Garamond', Georgia, serif",
-            }}>
-              Add note
-            </button>
-          )}
-          <button onClick={handleResolve} disabled={resolving} style={{
-            padding: "8px 20px",
-            background: resolving ? "transparent" : C.gold,
-            border: `1px solid ${C.gold}`, borderRadius: 3,
-            color: resolving ? C.goldMuted : "#1a1510",
-            fontSize: 12, cursor: resolving ? "not-allowed" : "pointer",
-            fontFamily: "'EB Garamond', Georgia, serif", letterSpacing: "0.08em",
+        <div style={{ color: C.goldMuted, fontSize: 10, letterSpacing: "0.12em", marginBottom: 8 }}>WHY THESE BELIEFS ARE IN TENSION</div>
+        {analyzing ? (
+          <div style={{ color: C.textMuted, fontSize: 13, fontStyle: "italic" }}>Analysing your journal…</div>
+        ) : (
+          <div style={{
+            padding: "14px 16px", background: C.goldFaint,
+            border: `1px solid ${C.border}`,
+            borderLeft: `3px solid ${tensionColor(pair.tension_score)}`,
+            borderRadius: 3, color: C.text, fontSize: 14, lineHeight: 1.7, fontStyle: "italic",
           }}>
-            {resolving ? "Resolving…" : "Mark as resolved"}
-          </button>
-        </div>
+            {analysis?.why_contradiction || "—"}
+          </div>
+        )}
       </div>
+
+      {/* Resolution paths */}
+      {!analyzing && analysis?.resolution_paths?.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ color: C.goldMuted, fontSize: 10, letterSpacing: "0.12em", marginBottom: 10 }}>HOW YOU MIGHT RESOLVE THIS</div>
+          {analysis.resolution_paths.map((path, i) => {
+            const isChosen = chosenPath?.title === path.title;
+            return (
+              <div key={i} onClick={() => setChosenPath(isChosen ? null : path)} style={{
+                padding: "12px 14px", marginBottom: 8,
+                background: isChosen ? "rgba(200,169,110,0.12)" : C.goldFaint,
+                border: `1px solid ${isChosen ? C.gold : C.border}`,
+                borderRadius: 3, cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}>
+                <div style={{ color: isChosen ? C.gold : C.text, fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
+                  {isChosen ? "✓ " : ""}{path.title}
+                </div>
+                <div style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.6 }}>{path.description}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Custom note */}
+      <div style={{ marginBottom: 16 }}>
+        <textarea
+          value={customNote}
+          onChange={e => setCustomNote(e.target.value)}
+          placeholder={chosenPath ? "Add your own thoughts on this path… (optional)" : "Or write your own resolution…"}
+          style={{
+            width: "100%", minHeight: 70, background: C.goldFaint,
+            border: `1px solid ${C.border}`, borderRadius: 3,
+            color: C.text, fontSize: 13, padding: "10px 12px",
+            fontFamily: "'EB Garamond', Georgia, serif", resize: "vertical",
+            boxSizing: "border-box",
+          }}
+        />
+      </div>
+
+      {/* Resolve button */}
+      <button
+        onClick={handleResolve}
+        disabled={resolving || analyzing || (!chosenPath && !customNote.trim())}
+        style={{
+          width: "100%", padding: "10px 0",
+          background: (chosenPath || customNote.trim()) ? C.gold : "transparent",
+          border: `1px solid ${C.gold}`, borderRadius: 3,
+          color: (chosenPath || customNote.trim()) ? "#1a1510" : C.goldMuted,
+          fontSize: 13, cursor: (resolving || analyzing || (!chosenPath && !customNote.trim())) ? "not-allowed" : "pointer",
+          fontFamily: "'EB Garamond', Georgia, serif", letterSpacing: "0.08em",
+        }}
+      >
+        {resolving ? "Resolving…" : "Mark as resolved"}
+      </button>
     </div>
   );
 }

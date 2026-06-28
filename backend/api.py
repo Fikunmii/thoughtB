@@ -422,6 +422,73 @@ def resolve_contradiction(
     return {"status": "resolved", "concept_a": ca, "concept_b": cb}
 
 
+@app.post("/contradictions/analyze", tags=["graph"])
+def analyze_contradiction(
+    body: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Use Claude to explain why two concepts contradict and suggest resolution paths."""
+    uid = current_user["user_id"]
+    ca  = body.get("concept_a", "")
+    cb  = body.get("concept_b", "")
+
+    # Fetch journal entries that surface both concepts
+    with driver.session() as s:
+        rows = s.run("""
+            MATCH (e:Entry {user_id: $uid})-[:SURFACES]->(c:Concept {user_id: $uid})
+            WHERE c.label IN [$ca, $cb]
+            WITH e, collect(c.label) AS concepts
+            WHERE size(concepts) >= 1
+            RETURN e.content AS content, concepts
+            ORDER BY e.created_at DESC LIMIT 6
+        """, uid=uid, ca=ca, cb=cb).data()
+
+    # Build context from real entries
+    context_lines = []
+    for r in rows:
+        snippet = (r["content"] or "")[:300]
+        context_lines.append(f"[{', '.join(r['concepts'])}] {snippet}")
+    context = "\n\n".join(context_lines) if context_lines else "No journal entries found yet."
+
+    prompt = f"""You are analyzing a person's philosophical journal. Two concepts appear to be in tension:
+
+CONCEPT A: {ca}
+CONCEPT B: {cb}
+
+RELEVANT JOURNAL EXCERPTS:
+{context}
+
+Respond in this exact JSON format, no markdown:
+{{
+  "why_contradiction": "2-3 sentences explaining why these two beliefs are in tension based on the journal excerpts above. Be specific and personal, not generic.",
+  "resolution_paths": [
+    {{
+      "title": "Short title (4-6 words)",
+      "description": "1-2 sentences describing this resolution path concretely."
+    }},
+    {{
+      "title": "Short title (4-6 words)",
+      "description": "1-2 sentences describing this resolution path concretely."
+    }},
+    {{
+      "title": "Short title (4-6 words)",
+      "description": "1-2 sentences describing this resolution path concretely."
+    }}
+  ]
+}}"""
+
+    resp = claude.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=600,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    import json, re
+    raw = resp.content[0].text.strip()
+    raw = re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.MULTILINE).strip()
+    analysis = json.loads(raw)
+    return analysis
+
+
 @app.get("/graph/stats", tags=["graph"])
 def get_graph_stats(current_user: dict = Depends(get_current_user)):
     uid = current_user["user_id"]
