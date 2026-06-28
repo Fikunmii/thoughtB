@@ -1,3 +1,14 @@
+import re as _re
+
+def serialize_dt(val):
+    """Convert Neo4j DateTime to clean ISO string JS can parse."""
+    if val is None:
+        return None
+    s = str(val)
+    s = _re.sub(r'(\.\d{3})\d+([+\-Z])', r'\1\2', s)
+    s = _re.sub(r'(\.\d{3})\d+$', r'\1', s)
+    return s
+
 """
 search_api.py — Full-text and semantic search for Thought Biography
 Registers /search endpoint on the FastAPI app.
@@ -201,14 +212,6 @@ def get_dashboard_data(user_id: str) -> dict:
         if latest and latest["created_at"]:
             try:
                 from datetime import datetime
-import re as _re
-
-def serialize_dt(val):
-    if val is None: return None
-    s = str(val)
-    s = _re.sub(r'(\.\d{3})\d+([\+\-Z])', r'\1\2', s)
-    s = _re.sub(r'(\.\d{3})\d+$', r'\1', s)
-    return s
                 last = datetime.fromisoformat(latest["created_at"].split(".")[0])
                 last_entry_ago = (datetime.utcnow() - last).days
             except Exception:
