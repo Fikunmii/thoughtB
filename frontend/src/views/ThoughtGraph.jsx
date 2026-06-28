@@ -179,7 +179,7 @@ export default function ThoughtGraph({ user, onNavigate }) {
       if (res.ok) {
         const d = await res.json();
         setGraphData(d);
-        setStats(d.stats || {});
+        setStats(d.stats || { concepts: d.nodes?.length || 0, entries: 0, contradictions: 0 });
       }
     } catch (e) {
       // Use mock data for development

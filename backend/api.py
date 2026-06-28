@@ -337,15 +337,14 @@ def get_graph(current_user: dict = Depends(get_current_user)):
     uid = current_user["user_id"]
     with driver.session() as s:
 
-        # Nodes: concepts, people, sources, life contexts
+        # Nodes: concepts (primary), also people/sources if any
         nodes_r = s.run("""
-            MATCH (n)-[:BELONGS_TO]->(:User {id: $uid})
-            WHERE n:Concept OR n:Person OR n:Source OR n:LifeContext
+            MATCH (n:Concept {user_id: $uid})
             RETURN
                 n.id             AS id,
-                coalesce(n.label, n.name, n.title) AS label,
-                labels(n)[0]     AS type,
-                coalesce(n.frequency, 1)       AS frequency,
+                n.label          AS label,
+                'Concept'        AS type,
+                coalesce(n.entry_count, 1)     AS frequency,
                 coalesce(n.stability_score, 1) AS stability,
                 coalesce(n.is_core, false)      AS is_core,
                 n.first_seen     AS first_seen
@@ -354,21 +353,15 @@ def get_graph(current_user: dict = Depends(get_current_user)):
         nodes = []
         for r in nodes_r:
             node = dict(r)
-            node["first_seen"] = str(node.get("first_seen") or "")
+            node["first_seen"] = serialize_dt(node.get("first_seen"))
             nodes.append(node)
 
-        # Edges — use label as source/target so D3 can match nodes by label
+        # Edges — filter by user_id on concepts, use label for D3 matching
         edges_r = s.run("""
-            MATCH (a)-[r]->(b)
-            WHERE (a)-[:BELONGS_TO]->(:User {id: $uid})
-               OR (b)-[:BELONGS_TO]->(:User {id: $uid})
-               OR r.user_id = $uid
-            AND type(r) IN ['REINFORCES','CONTRADICTS','EVOLVED_INTO','INTRODUCED','CATALYZED','SURFACES']
-            WITH a, b, r
-            WHERE type(r) IN ['REINFORCES','CONTRADICTS','EVOLVED_INTO','INTRODUCED','CATALYZED','SURFACES']
+            MATCH (a:Concept {user_id: $uid})-[r:REINFORCES|CONTRADICTS|EVOLVED_INTO]->(b:Concept {user_id: $uid})
             RETURN
-                coalesce(a.label, a.name, a.title) AS source,
-                coalesce(b.label, b.name, b.title) AS target,
+                a.label AS source,
+                b.label AS target,
                 type(r) AS type,
                 coalesce(r.strength, r.tension_score, r.shift_magnitude, r.weight, 1.0) AS weight,
                 r.first_observed AS first_observed
@@ -382,7 +375,19 @@ def get_graph(current_user: dict = Depends(get_current_user)):
             if edge["source"] in node_labels and edge["target"] in node_labels:
                 edges.append(edge)
 
-    return {"nodes": nodes, "edges": edges}
+        tensions     = sum(1 for e in edges if e["type"] == "CONTRADICTS")
+        reinforcing  = sum(1 for e in edges if e["type"] == "REINFORCES")
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "stats": {
+            "concepts":      len(nodes),
+            "entries":       len({e.get("via_entry") for e in edges if e.get("via_entry")}),
+            "contradictions": tensions,
+            "reinforcing":   reinforcing,
+        }
+    }
 
 
 @app.get("/graph/stats", tags=["graph"])
