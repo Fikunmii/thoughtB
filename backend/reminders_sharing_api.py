@@ -59,6 +59,15 @@ def get_digest(current_user: dict = Depends(get_current_user)):
     return build_digest(uid)
 
 
+@router.get("/digest/settings")
+def get_digest_settings(current_user: dict = Depends(get_current_user)):
+    uid = current_user["user_id"]
+    with driver.session() as session:
+        r = session.run("MATCH (u:User {id:$uid}) RETURN u.reminder_settings AS s", uid=uid).single()
+        import json
+        raw = r["s"] if r else None
+        return json.loads(raw) if raw else {"frequency": "weekly", "enabled": True}
+
 @router.put("/reminders/settings")
 def update_settings(settings: ReminderSettings, current_user: dict = Depends(get_current_user)):
     uid = current_user["user_id"]
@@ -124,7 +133,7 @@ def generate_prompts(user_id: str, force: bool = False) -> list[dict]:
     context = "\n".join(context_lines)
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=800,
         system="""You generate reflection prompts for a thought biography app. 
 Given signals from the user's concept graph, write 4-5 sharp, honest prompts that invite genuine reflection.

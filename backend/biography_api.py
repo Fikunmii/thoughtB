@@ -256,6 +256,42 @@ async def export_biography_markdown(body: dict):
 
 
 # ── Registration helper ───────────────────────────────────────────────────────
+def get_biography_latest(current_user: dict = Depends(get_current_user)):
+    """GET /biography — get latest saved biography."""
+    uid = current_user["user_id"]
+    with driver.session() as s:
+        r = s.run("""
+            MATCH (u:User {id:$uid})
+            RETURN u.biography_text AS text, u.biography_updated AS updated
+        """, uid=uid).single()
+        if r and r["text"]:
+            return {"text": r["text"], "updated": str(r["updated"] or "")}
+        return {"text": None, "updated": None}
+
+
+def get_biography_history(current_user: dict = Depends(get_current_user)):
+    """GET /biography/history — list saved biography versions."""
+    uid = current_user["user_id"]
+    with driver.session() as s:
+        rows = s.run("""
+            MATCH (u:User {id:$uid})
+            RETURN u.biography_text AS text, u.biography_updated AS updated
+        """, uid=uid).data()
+        return {"history": [{"text": r["text"], "updated": str(r["updated"] or "")} for r in rows if r.get("text")]}
+
+
+def save_biography(body: dict, current_user: dict = Depends(get_current_user)):
+    """POST /biography/save — save generated biography text."""
+    uid = current_user["user_id"]
+    text = body.get("text", "")
+    with driver.session() as s:
+        s.run("""
+            MATCH (u:User {id:$uid})
+            SET u.biography_text = $text, u.biography_updated = datetime()
+        """, uid=uid, text=text)
+    return {"status": "saved"}
+
+
 def register_biography_routes(app):
     """
     Call this in api.py:
@@ -272,6 +308,10 @@ def register_biography_routes(app):
     app.add_api_route("/biography/data",     get_biography_data,          methods=["GET"])
     app.add_api_route("/biography/generate", generate_biography_stream,   methods=["GET"])
     app.add_api_route("/biography/export",   export_biography_markdown,   methods=["POST"])
+    app.add_api_route("/biography",          get_biography_latest,        methods=["GET"])
+    app.add_api_route("/biography/history",  get_biography_history,       methods=["GET"])
+    app.add_api_route("/biography/save",     save_biography,              methods=["POST"])
+    app.add_api_route("/biography/stream",   generate_biography_stream,   methods=["GET"])
 
     print("✓ Biography routes registered")
 

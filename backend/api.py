@@ -142,6 +142,13 @@ register_search_routes(app)
 register_export_routes(app)
 register_reminders_sharing_routes(app)
 
+try:
+    from limitless_import import register_import_routes
+    register_import_routes(app)
+    print("✓ limitless import routes registered")
+except Exception as e:
+    print(f"⚠ limitless_import not loaded: {e}")
+
 if BIOGRAPHY_AVAILABLE:
     register_biography_routes(app)
 
