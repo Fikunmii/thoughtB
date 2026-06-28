@@ -151,7 +151,7 @@ def get_dashboard_data(user_id: str) -> dict:
         if le:
             e = dict(le["e"])
             latest = {
-                "created_at":    str(e.get("created_at", "")),
+                "created_at":    serialize_dt(e.get("created_at")),
                 "emotional_tone": e.get("emotional_tone", ""),
                 "excerpt":        e.get("content", "")[:280],
                 "concepts":       le["concepts"],
@@ -201,6 +201,14 @@ def get_dashboard_data(user_id: str) -> dict:
         if latest and latest["created_at"]:
             try:
                 from datetime import datetime
+import re as _re
+
+def serialize_dt(val):
+    if val is None: return None
+    s = str(val)
+    s = _re.sub(r'(\.\d{3})\d+([\+\-Z])', r'\1\2', s)
+    s = _re.sub(r'(\.\d{3})\d+$', r'\1', s)
+    return s
                 last = datetime.fromisoformat(latest["created_at"].split(".")[0])
                 last_entry_ago = (datetime.utcnow() - last).days
             except Exception:

@@ -30,6 +30,17 @@ import os
 import uuid
 import json
 from datetime import datetime
+
+def serialize_dt(val):
+    """Convert Neo4j DateTime or string to clean ISO format JS can parse."""
+    if val is None:
+        return None
+    s = str(val)
+    # Neo4j DateTime str: "2026-06-17T16:13:18.594149000+00:00" — strip nanoseconds
+    import re
+    s = re.sub(r'(\.\d{3})\d+([\+\-Z])', r'', s)
+    s = re.sub(r'(\.\d{3})\d+$', r'', s)
+    return s
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Query, Body
@@ -245,7 +256,7 @@ def list_entries(
         entries = []
         for r in result:
             e = dict(r["e"])
-            e["created_at"] = str(e.get("created_at", ""))
+            e["created_at"] = serialize_dt(e.get("created_at"))
             e["concepts"]   = r["concepts"]
             e.pop("content", None)  # don't send full content in list
             e["excerpt"] = (dict(r["e"]).get("content") or "")[:280]
@@ -277,7 +288,7 @@ def get_entry(
         raise HTTPException(status_code=404, detail="Entry not found")
 
     e = dict(result["e"])
-    e["created_at"] = str(e.get("created_at", ""))
+    e["created_at"] = serialize_dt(e.get("created_at"))
     e["concepts"]   = result["concepts"]
     return e
 
@@ -346,25 +357,29 @@ def get_graph(current_user: dict = Depends(get_current_user)):
             node["first_seen"] = str(node.get("first_seen") or "")
             nodes.append(node)
 
-        # Edges
+        # Edges — use label as source/target so D3 can match nodes by label
         edges_r = s.run("""
             MATCH (a)-[r]->(b)
-            WHERE r.user_id = $uid
-              AND type(r) IN ['REINFORCES','CONTRADICTS','EVOLVED_INTO','INTRODUCED','CATALYZED','SURFACES']
+            WHERE (a)-[:BELONGS_TO]->(:User {id: $uid})
+               OR (b)-[:BELONGS_TO]->(:User {id: $uid})
+               OR r.user_id = $uid
+            AND type(r) IN ['REINFORCES','CONTRADICTS','EVOLVED_INTO','INTRODUCED','CATALYZED','SURFACES']
+            WITH a, b, r
+            WHERE type(r) IN ['REINFORCES','CONTRADICTS','EVOLVED_INTO','INTRODUCED','CATALYZED','SURFACES']
             RETURN
-                a.id AS source,
-                b.id AS target,
+                coalesce(a.label, a.name, a.title) AS source,
+                coalesce(b.label, b.name, b.title) AS target,
                 type(r) AS type,
                 coalesce(r.strength, r.tension_score, r.shift_magnitude, r.weight, 1.0) AS weight,
                 r.first_observed AS first_observed
         """, uid=uid)
 
-        node_ids = {n["id"] for n in nodes}
+        node_labels = {n["label"] for n in nodes}
         edges = []
         for r in edges_r:
             edge = dict(r)
-            edge["first_observed"] = str(edge.get("first_observed") or "")
-            if edge["source"] in node_ids and edge["target"] in node_ids:
+            edge["first_observed"] = serialize_dt(edge.get("first_observed"))
+            if edge["source"] in node_labels and edge["target"] in node_labels:
                 edges.append(edge)
 
     return {"nodes": nodes, "edges": edges}
@@ -411,8 +426,8 @@ def list_concepts(
         concepts = []
         for r in result:
             c = dict(r["c"])
-            c["first_seen"] = str(c.get("first_seen", ""))
-            c["last_seen"]  = str(c.get("last_seen",  ""))
+            c["first_seen"] = serialize_dt(c.get("first_seen"))
+            c["last_seen"]  = serialize_dt(c.get("last_seen"))
             c["entry_count"] = r["entry_count"]
             points = [p for p in (r["raw_points"] or []) if p and p.get("date")]
             points.sort(key=lambda p: p["date"])
@@ -483,8 +498,8 @@ def get_concept(
             raise HTTPException(status_code=404, detail="Concept not found")
 
         concept = dict(result["c"])
-        concept["first_seen"] = str(concept.get("first_seen", ""))
-        concept["last_seen"]  = str(concept.get("last_seen",  ""))
+        concept["first_seen"] = serialize_dt(concept.get("first_seen"))
+        concept["last_seen"]  = serialize_dt(concept.get("last_seen"))
 
         # Definition history (drift snapshots)
         snapshots_r = s.run("""
@@ -754,6 +769,10 @@ def write_extraction_to_graph(user_id: str, entry_id: str, extraction: dict):
                 MERGE (e)-[r:SURFACES]->(c)
                 SET r.weight           = $weight,
                     r.context_snippet  = $snippet
+                WITH c
+                MATCH (e2:Entry)-[:SURFACES]->(c)
+                WITH c, count(e2) AS ec
+                SET c.entry_count = ec
             """, eid=entry_id, label=label, uid=user_id,
                  weight=concept.get("weight", 0.5),
                  snippet=concept.get("context_snippet", ""))
