@@ -359,6 +359,7 @@ def get_graph(current_user: dict = Depends(get_current_user)):
         # Edges — filter by user_id on concepts, use label for D3 matching
         edges_r = s.run("""
             MATCH (a:Concept {user_id: $uid})-[r:REINFORCES|CONTRADICTS|EVOLVED_INTO]->(b:Concept {user_id: $uid})
+            WHERE NOT coalesce(r.resolved, false)
             RETURN
                 a.label AS source,
                 b.label AS target,
@@ -393,6 +394,32 @@ def get_graph(current_user: dict = Depends(get_current_user)):
             "reinforcing":    reinforcing,
         }
     }
+
+
+@app.post("/contradictions/resolve", tags=["graph"])
+def resolve_contradiction(
+    body: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    uid = current_user["user_id"]
+    ca  = body.get("concept_a", "")
+    cb  = body.get("concept_b", "")
+    note = body.get("resolution_note", "")
+    with driver.session() as s:
+        s.run("""
+            MATCH (a:Concept {label: $ca, user_id: $uid})-[r:CONTRADICTS]->(b:Concept {label: $cb, user_id: $uid})
+            SET r.resolved = true,
+                r.resolved_at = datetime(),
+                r.resolution_note = $note
+        """, ca=ca, cb=cb, uid=uid, note=note)
+        # Also try reverse direction
+        s.run("""
+            MATCH (a:Concept {label: $cb, user_id: $uid})-[r:CONTRADICTS]->(b:Concept {label: $ca, user_id: $uid})
+            SET r.resolved = true,
+                r.resolved_at = datetime(),
+                r.resolution_note = $note
+        """, ca=ca, cb=cb, uid=uid, note=note)
+    return {"status": "resolved", "concept_a": ca, "concept_b": cb}
 
 
 @app.get("/graph/stats", tags=["graph"])

@@ -106,17 +106,56 @@ function RadialMap({ pairs, selected, onSelect }) {
         .attr("fill", isInSelected ? C.gold : C.goldMuted);
     });
 
-  }, [pairs, selected]);
+  }, [pairs]); // intentionally excludes selected — re-renders break click events
 
   return <svg ref={svgRef} style={{ width: "100%", maxWidth: 420 }} />;
 }
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
-function DetailPanel({ pair }) {
+function DetailPanel({ pair, onResolved }) {
+  const [resolving, setResolving] = useState(false);
+  const [resolved,  setResolved]  = useState(false);
+  const [note,      setNote]      = useState("");
+  const [showNote,  setShowNote]  = useState(false);
+
+  // Reset when pair changes
+  useEffect(() => { setResolved(false); setNote(""); setShowNote(false); }, [pair]);
+
   if (!pair) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, fontSize: 14, fontStyle: "italic" }}>
         Select a tension to examine it
+      </div>
+    );
+  }
+
+  const handleResolve = async () => {
+    setResolving(true);
+    try {
+      await authFetch(`${API}/contradictions/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          concept_a:       pair.concept_a,
+          concept_b:       pair.concept_b,
+          resolution_note: note || "Marked as resolved.",
+        }),
+      });
+      setResolved(true);
+      onResolved?.(pair);
+    } catch (e) {
+      console.error("Resolve failed", e);
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  if (resolved) {
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 12 }}>
+        <div style={{ fontSize: 28, color: C.gold }}>✓</div>
+        <div style={{ color: C.text, fontSize: 16, fontStyle: "italic" }}>Tension resolved</div>
+        <div style={{ color: C.textMuted, fontSize: 12 }}>{pair.concept_a} ⟷ {pair.concept_b}</div>
       </div>
     );
   }
@@ -148,16 +187,56 @@ function DetailPanel({ pair }) {
       )}
 
       {pair.detected_at && (
-        <div style={{ color: C.textMuted, fontSize: 11 }}>
+        <div style={{ color: C.textMuted, fontSize: 11, marginBottom: 16 }}>
           Detected: {new Date(pair.detected_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
         </div>
       )}
 
-      <div style={{ marginTop: 24, padding: "14px 0", borderTop: `1px solid ${C.border}` }}>
-        <div style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.7 }}>
+      <div style={{ marginTop: 8, padding: "16px 0", borderTop: `1px solid ${C.border}` }}>
+        <div style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.7, marginBottom: 16 }}>
           This tension does not need to be resolved — many productive thinkers hold genuine contradictions.
           The question is whether you are holding it <em style={{ color: C.text }}>consciously</em> or
           being pulled by it without knowing.
+        </div>
+
+        {showNote ? (
+          <div style={{ marginBottom: 12 }}>
+            <textarea
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="How did you resolve this tension? (optional)"
+              style={{
+                width: "100%", minHeight: 80, background: C.goldFaint,
+                border: `1px solid ${C.border}`, borderRadius: 3,
+                color: C.text, fontSize: 13, padding: "10px 12px",
+                fontFamily: "'EB Garamond', Georgia, serif", resize: "vertical",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+        ) : null}
+
+        <div style={{ display: "flex", gap: 10 }}>
+          {!showNote && (
+            <button onClick={() => setShowNote(true)} style={{
+              padding: "8px 16px", background: "transparent",
+              border: `1px solid ${C.border}`, borderRadius: 3,
+              color: C.goldMuted, fontSize: 12, cursor: "pointer",
+              fontFamily: "'EB Garamond', Georgia, serif",
+            }}>
+              Add note
+            </button>
+          )}
+          <button onClick={handleResolve} disabled={resolving} style={{
+            padding: "8px 20px",
+            background: resolving ? "transparent" : C.gold,
+            border: `1px solid ${C.gold}`, borderRadius: 3,
+            color: resolving ? C.goldMuted : "#1a1510",
+            fontSize: 12, cursor: resolving ? "not-allowed" : "pointer",
+            fontFamily: "'EB Garamond', Georgia, serif", letterSpacing: "0.08em",
+          }}>
+            {resolving ? "Resolving…" : "Mark as resolved"}
+          </button>
         </div>
       </div>
     </div>
@@ -263,7 +342,7 @@ export default function ContradictionWorkflow({ user, onNavigate }) {
       </div>
 
       {/* Right — detail */}
-      <DetailPanel pair={selected} />
+      <DetailPanel pair={selected} onResolved={p => { setPairs(prev => prev.filter(x => !(x.concept_a === p.concept_a && x.concept_b === p.concept_b))); setSelected(null); }} />
     </div>
   );
 }
