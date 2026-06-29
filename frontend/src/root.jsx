@@ -34,9 +34,11 @@ export default function Root() {
   const [user, setUser] = useState(AuthStorage.getUser());
   // Track whether the CTA was clicked (to show auth vs landing)
   const [showAuth, setShowAuth] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState(null);
 
-  function handleGetStarted() {
-    // CTA clicked — go to register mode
+  function handleGetStarted(plan) {
+    // CTA clicked — store plan intent, go to register mode
+    if (plan && plan !== "free") setPendingPlan(plan);
     setShowAuth(true);
     setScene("auth");
   }
@@ -49,6 +51,25 @@ export default function Root() {
 
   function handleAuthenticated(u) {
     setUser(u);
+    if (pendingPlan) {
+      // Redirect to Stripe checkout for the selected plan
+      const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+      const token = localStorage.getItem("tb_token") || sessionStorage.getItem("tb_token");
+      fetch(`${API}/subscription/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ plan: pendingPlan }),
+      })
+        .then(r => r.json())
+        .then(d => { if (d.checkout_url) window.location.href = d.checkout_url; })
+        .catch(() => {
+          setPendingPlan(null);
+          const alreadyOnboarded = localStorage.getItem("tb_onboarded");
+          setScene(alreadyOnboarded ? "app" : "onboarding");
+        });
+      setPendingPlan(null);
+      return;
+    }
     const alreadyOnboarded = localStorage.getItem("tb_onboarded");
     setScene(alreadyOnboarded ? "app" : "onboarding");
   }
