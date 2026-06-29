@@ -143,6 +143,13 @@ register_export_routes(app)
 register_reminders_sharing_routes(app)
 
 try:
+    from stripe_api import register_stripe_routes
+    register_stripe_routes(app)
+    print("✓ stripe routes registered")
+except Exception as e:
+    print(f"⚠ stripe_api not loaded: {e}")
+
+try:
     from limitless_import import register_import_routes
     register_import_routes(app)
     print("✓ limitless import routes registered")
@@ -202,6 +209,14 @@ def create_entry(
     Create a new entry and process it through the AI pipeline.
     Returns the entry ID plus the extracted graph data.
     """
+    # Free tier: max 30 entries
+    _uid = current_user["user_id"]
+    with driver.session() as _s:
+        _plan_r = _s.run("MATCH (u:User {id:$uid}) RETURN coalesce(u.plan,'free') AS plan", uid=_uid).single()
+        if (_plan_r["plan"] if _plan_r else "free") == "free":
+            _cnt = _s.run("MATCH (e:Entry {user_id:$uid}) RETURN count(e) AS n", uid=_uid).single()
+            if _cnt and _cnt["n"] >= 30:
+                raise HTTPException(status_code=402, detail="Free tier limit reached (30 entries). Upgrade to Personal for unlimited entries.")
     uid        = current_user["user_id"]
     entry_id   = str(uuid.uuid4())
     created_at = req.date or datetime.utcnow().isoformat()

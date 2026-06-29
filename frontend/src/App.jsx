@@ -17,12 +17,14 @@ import Reminders            from "./pages/Reminders";
 import TherapistMode        from "./pages/TherapistMode";
 import DigestSettings       from "./pages/DigestSettings";
 import ImportHistory        from "./pages/ImportHistory";
+import Billing              from "./pages/Billing";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // ── Nav config ────────────────────────────────────────────────────────────────
 const NAV = [
   { id: "home",          label: "Home",           icon: "⌂",  shortcut: "H", group: "main"     },
+  { id: "billing",       label: "Upgrade",        icon: "✦",  shortcut: "U", group: "settings"  },
   { id: "journal",       label: "Journal",         icon: "✦",  shortcut: "J", group: "main"     },
   { id: "graph",         label: "Graph",           icon: "◉",  shortcut: "G", group: "explore"  },
   { id: "influence",     label: "Influence Trees", icon: "→",  shortcut: "I", group: "explore"  },
@@ -64,6 +66,7 @@ function ViewRouter({ view, user, onNavigate }) {
     case "share":          return <TherapistMode       {...props} />;
     case "digest":         return <DigestSettings      {...props} />;
     case "import":         return <ImportHistory       {...props} />;
+    case "billing":        return <Billing             {...props} />;
     default:               return <Dashboard           {...props} />;
   }
 }
@@ -72,7 +75,18 @@ function ViewRouter({ view, user, onNavigate }) {
 export default function App() {
   const [authed,      setAuthed]      = useState(AuthStorage.isLoggedIn());
   const [user,        setUser]        = useState(AuthStorage.getUser());
-  const [activeView,  setActiveView]  = useState("home");
+  const [activeView,  setActiveView]  = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("subscribed") === "true") {
+      window.history.replaceState({}, "", window.location.pathname);
+      return "home";
+    }
+    return "home";
+  });
+  const [subBanner, setSubBanner] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("subscribed") === "true" ? params.get("plan") : null;
+  });
   const [collapsed,   setCollapsed]   = useState(false);
   const [connected,   setConnected]   = useState(true);
   const [stats,       setStats]       = useState({ entries: 0, concepts: 0, contradictions: 0 });
@@ -296,6 +310,18 @@ export default function App() {
         {/* View content */}
         <div style={{ flex: 1, overflow: "auto", scrollbarWidth: "none", msOverflowStyle: "none" }}>
           <ErrorBoundary key={activeView}>
+            {subBanner && (
+              <div style={{
+                position: "fixed", top: 0, left: 0, right: 0, zIndex: 999,
+                background: "rgba(200,169,110,0.15)", borderBottom: "1px solid rgba(200,169,110,0.3)",
+                padding: "12px 24px", textAlign: "center",
+                fontFamily: "'EB Garamond', Georgia, serif", color: "#c8a96e", fontSize: 14,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 16,
+              }}>
+                ✦ Welcome to {subBanner.charAt(0).toUpperCase() + subBanner.slice(1)}! Your 14-day free trial has started.
+                <button onClick={() => setSubBanner(null)} style={{ background: "transparent", border: "none", color: "#c8a96e", cursor: "pointer", fontSize: 16 }}>×</button>
+              </div>
+            )}
             <ViewRouter view={activeView} user={user} onNavigate={navigate} />
           </ErrorBoundary>
         </div>
