@@ -14,7 +14,8 @@ import os
 import json
 import asyncio
 from datetime import datetime, timezone
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
+from auth import get_current_user
 from fastapi.responses import StreamingResponse, JSONResponse
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
