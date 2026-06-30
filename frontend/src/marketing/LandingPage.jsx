@@ -618,7 +618,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
             display: "flex", gap: 14, alignItems: "center",
             animation: "lp-fade-up 0.6s ease 0.4s both",
           }}>
-            <button className="lp-btn-primary" onClick={onGetStarted} style={{
+            <button className="lp-btn-primary" onClick={() => onGetStarted("free")} style={{
               padding: "15px 34px",
               background: "rgba(200,169,110,0.14)",
               border: `1px solid rgba(200,169,110,0.45)`,
@@ -949,11 +949,11 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
                 "5 queries per day",
               ]}
               cta="Begin for free"
-              onCta={onGetStarted}
+              onCta={() => onGetStarted("free")}
             />
             <PricingCard
               tier="Personal"
-              price="$15"
+              price="$15.99"
               sub="per month"
               highlighted
               delay={80}
@@ -967,11 +967,11 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
                 "Full data export",
               ]}
               cta="Start 14-day free trial"
-              onCta={onGetStarted}
+              onCta={() => onGetStarted("personal")}
             />
             <PricingCard
               tier="Professional"
-              price="$49"
+              price="$49.99"
               sub="per month"
               delay={160}
               features={[
@@ -982,7 +982,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
                 "Priority support",
               ]}
               cta="Start free trial"
-              onCta={onGetStarted}
+              onCta={() => onGetStarted("professional")}
             />
           </div>
         </div>
@@ -1020,7 +1020,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
             }}>
               Free for your first 30 entries. No credit card. Your data is encrypted and yours to keep.
             </p>
-            <button className="lp-btn-primary" onClick={onGetStarted} style={{
+            <button className="lp-btn-primary" onClick={() => onGetStarted("free")} style={{
               padding: "17px 44px",
               background: "rgba(200,169,110,0.14)",
               border: `1px solid rgba(200,169,110,0.45)`,
