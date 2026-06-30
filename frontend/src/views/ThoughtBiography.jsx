@@ -159,6 +159,134 @@ function EntryItem({ entry, isActive, onClick }) {
   );
 }
 
+// ── Folder pill ──────────────────────────────────────────────────────────────
+function FolderPill({ label, count, active, onClick, onRename, onDelete, editable }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(label);
+
+  function submitRename() {
+    setEditing(false);
+    if (name.trim() && name !== label) onRename?.(name.trim());
+  }
+
+  return (
+    <div
+      onClick={() => !editing && onClick()}
+      style={{
+        display: "flex", alignItems: "center", gap: 6,
+        padding: "6px 10px",
+        borderRadius: 3, cursor: "pointer",
+        background: active ? C.goldFaint : "transparent",
+        borderLeft: active ? `2px solid ${C.gold}` : "2px solid transparent",
+        transition: "all 0.15s",
+      }}
+    >
+      {editing ? (
+        <input
+          value={name}
+          autoFocus
+          onClick={e => e.stopPropagation()}
+          onChange={e => setName(e.target.value)}
+          onBlur={submitRename}
+          onKeyDown={e => e.key === "Enter" && submitRename()}
+          style={{
+            flex: 1, background: "rgba(255,255,255,0.04)",
+            border: `1px solid ${C.border}`, borderRadius: 3,
+            padding: "2px 6px", color: C.text, fontSize: 12,
+            fontFamily: "inherit", outline: "none",
+          }}
+        />
+      ) : (
+        <span style={{
+          flex: 1, fontSize: 12.5,
+          color: active ? C.gold : C.textMuted,
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>{label}</span>
+      )}
+      {count != null && !editing && (
+        <span style={{ fontSize: 10, color: C.goldMuted, flexShrink: 0 }}>{count}</span>
+      )}
+      {editable && !editing && (
+        <span style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+          <span
+            onClick={e => { e.stopPropagation(); setEditing(true); }}
+            style={{ fontSize: 11, color: "rgba(232,220,200,0.25)" }}
+          >✎</span>
+          <span
+            onClick={e => { e.stopPropagation(); onDelete?.(); }}
+            style={{ fontSize: 12, color: "rgba(232,220,200,0.25)" }}
+          >×</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Folder suggestion strip ───────────────────────────────────────────────────
+function SuggestionStrip({ suggestions, onAccept, onDismiss }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!suggestions.length) return null;
+  const top = suggestions[0];
+  const rest = suggestions.length - 1;
+
+  return (
+    <div style={{
+      margin: "10px 12px 0",
+      padding: "10px 12px",
+      background: "rgba(200,169,110,0.06)",
+      border: `1px solid rgba(200,169,110,0.25)`,
+      borderRadius: 4,
+      animation: "tb-fade 0.3s ease",
+    }}>
+      <div style={{ color: C.goldMuted, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
+        Suggested folder
+      </div>
+      <div style={{ color: C.gold, fontSize: 14, marginBottom: 6 }}>{top.name}</div>
+      <div style={{ color: C.textMuted, fontSize: 11.5, marginBottom: 8 }}>
+        {top.entry_count} entries{top.rationale ? ` · ${top.rationale}` : ""}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => onAccept(top.id, top.name)} style={{
+          padding: "4px 12px", background: "rgba(200,169,110,0.14)",
+          border: `1px solid rgba(200,169,110,0.5)`, borderRadius: 3,
+          color: C.gold, fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+        }}>Accept</button>
+        <button onClick={() => onDismiss(top.id, false)} style={{
+          padding: "4px 12px", background: "none",
+          border: `1px solid ${C.border}`, borderRadius: 3,
+          color: C.textMuted, fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+        }}>Not now</button>
+      </div>
+      {rest > 0 && (
+        <div
+          onClick={() => setExpanded(v => !v)}
+          style={{ color: C.goldMuted, fontSize: 10.5, marginTop: 8, cursor: "pointer" }}
+        >
+          {expanded ? "Hide" : `+${rest} more suggestion${rest > 1 ? "s" : ""}`}
+        </div>
+      )}
+      {expanded && suggestions.slice(1).map(s => (
+        <div key={s.id} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+          <div style={{ color: C.gold, fontSize: 13, marginBottom: 4 }}>{s.name}</div>
+          <div style={{ color: C.textMuted, fontSize: 11, marginBottom: 6 }}>{s.entry_count} entries</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => onAccept(s.id, s.name)} style={{
+              padding: "3px 10px", background: "rgba(200,169,110,0.14)",
+              border: `1px solid rgba(200,169,110,0.5)`, borderRadius: 3,
+              color: C.gold, fontSize: 10.5, cursor: "pointer", fontFamily: "inherit",
+            }}>Accept</button>
+            <button onClick={() => onDismiss(s.id, false)} style={{
+              padding: "3px 10px", background: "none",
+              border: `1px solid ${C.border}`, borderRadius: 3,
+              color: C.textMuted, fontSize: 10.5, cursor: "pointer", fontFamily: "inherit",
+            }}>Not now</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ThoughtBiography({ user, onNavigate }) {
   injectStyles();
@@ -173,6 +301,103 @@ export default function ThoughtBiography({ user, onNavigate }) {
   const [wordCount,    setWordCount]    = useState(0);
   const [mode,         setMode]         = useState("new"); // new | view
   const textareaRef = useRef(null);
+
+  // ── Folders ──────────────────────────────────────────────────────────────
+  const [folders,        setFolders]        = useState([]);
+  const [suggestions,    setSuggestions]    = useState([]);
+  const [activeFolderId, setActiveFolderId] = useState(null); // null = All Entries
+  const [folderEntries,  setFolderEntries]  = useState([]);
+  const [folderLoading,  setFolderLoading]  = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName,  setNewFolderName]  = useState("");
+
+  const loadFolders = useCallback(async () => {
+    try {
+      const [fRes, sRes] = await Promise.all([
+        authFetch(`${API}/folders`),
+        authFetch(`${API}/folders/suggestions`),
+      ]);
+      const fData = fRes.ok ? await fRes.json() : { folders: [] };
+      const sData = sRes.ok ? await sRes.json() : { suggestions: [] };
+      setFolders(fData.folders || []);
+      setSuggestions(sData.suggestions || []);
+    } catch { /* offline — keep prior state */ }
+  }, []);
+
+  useEffect(() => { loadFolders(); }, [loadFolders]);
+
+  async function selectFolder(folderId) {
+    setActiveFolderId(folderId);
+    if (folderId === null) return;
+    setFolderLoading(true);
+    try {
+      const res = await authFetch(`${API}/folders/${folderId}/entries`);
+      const data = await res.json();
+      setFolderEntries(data.entries || []);
+    } catch {
+      setFolderEntries([]);
+    } finally {
+      setFolderLoading(false);
+    }
+  }
+
+  async function acceptSuggestion(id, name) {
+    try {
+      const res = await authFetch(`${API}/folders/suggestions/${id}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) await loadFolders();
+    } catch {}
+  }
+
+  async function dismissSuggestion(id, permanent) {
+    try {
+      await authFetch(`${API}/folders/suggestions/${id}/dismiss`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permanent }),
+      });
+      setSuggestions(prev => prev.filter(s => s.id !== id));
+    } catch {}
+  }
+
+  async function renameFolder(id, name) {
+    try {
+      await authFetch(`${API}/folders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      await loadFolders();
+    } catch {}
+  }
+
+  async function deleteFolderHandler(id) {
+    if (!window.confirm("Delete this folder? Entries inside it will be unfiled, not deleted.")) return;
+    try {
+      await authFetch(`${API}/folders/${id}`, { method: "DELETE" });
+      if (activeFolderId === id) setActiveFolderId(null);
+      await loadFolders();
+    } catch {}
+  }
+
+  async function createFolder() {
+    if (!newFolderName.trim()) return;
+    try {
+      const res = await authFetch(`${API}/folders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newFolderName.trim() }),
+      });
+      if (res.ok) {
+        setNewFolderName("");
+        setCreatingFolder(false);
+        await loadFolders();
+      }
+    } catch {}
+  }
 
   // Load entry list
   const loadEntries = useCallback(async () => {
@@ -206,11 +431,30 @@ export default function ThoughtBiography({ user, onNavigate }) {
     setSaveResult(null);
   }
 
-  function openEntry(entry) {
+  const [openEntryLoading, setOpenEntryLoading] = useState(false);
+
+  async function openEntry(entry) {
     setMode("view");
     setActiveId(entry.id);
-    setDraft(entry.content || "");
     setSaveResult(null);
+    // List/folder responses don't include full content — fetch it.
+    if (entry.content != null) {
+      setDraft(entry.content);
+      return;
+    }
+    setOpenEntryLoading(true);
+    setDraft("");
+    try {
+      const res = await authFetch(`${API}/entries/${entry.id}`);
+      if (res.ok) {
+        const full = await res.json();
+        setDraft(full.content || "");
+      }
+    } catch {
+      setDraft("");
+    } finally {
+      setOpenEntryLoading(false);
+    }
   }
 
   async function saveEntry() {
@@ -227,6 +471,8 @@ export default function ThoughtBiography({ user, onNavigate }) {
       const d = await res.json();
       setSaveResult(d);
       await loadEntries();
+      await loadFolders(); // new entry may have been auto-filed or triggered a suggestion
+      if (activeFolderId !== null) await selectFolder(activeFolderId);
       // Stay in the textarea so writer can keep going
       setTimeout(() => setSaveResult(null), 6000);
     } catch (e) {
@@ -242,6 +488,8 @@ export default function ThoughtBiography({ user, onNavigate }) {
     try {
       await authFetch(`${API}/entries/${id}`, { method: "DELETE" });
       await loadEntries();
+      await loadFolders();
+      if (activeFolderId !== null) await selectFolder(activeFolderId);
       startNew();
     } catch (e) { /* silent */ }
     finally { setDeleting(false); }
@@ -258,7 +506,8 @@ export default function ThoughtBiography({ user, onNavigate }) {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") saveEntry();
   }
 
-  const activeEntry = entries.find(e => e.id === activeId);
+  const visibleEntries = activeFolderId === null ? entries : folderEntries;
+  const activeEntry = visibleEntries.find(e => e.id === activeId) || entries.find(e => e.id === activeId);
 
   return (
     <div style={{
@@ -269,7 +518,7 @@ export default function ThoughtBiography({ user, onNavigate }) {
 
       {/* ── Entry list (left) ─────────────────────────────────────── */}
       <div style={{
-        width: 260, flexShrink: 0,
+        width: 280, flexShrink: 0,
         borderRight: `1px solid ${C.border}`,
         display: "flex", flexDirection: "column",
         background: "rgba(14,13,10,0.6)",
@@ -296,18 +545,76 @@ export default function ThoughtBiography({ user, onNavigate }) {
           >+ New</button>
         </div>
 
+        {/* Folder rail */}
+        <div style={{
+          borderBottom: `1px solid ${C.border}`,
+          padding: "10px 12px",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ color: C.goldMuted, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              Folders
+            </span>
+            <span
+              onClick={() => setCreatingFolder(v => !v)}
+              style={{ color: C.goldMuted, fontSize: 14, cursor: "pointer" }}
+              title="New folder"
+            >+</span>
+          </div>
+          {creatingFolder && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+              <input
+                value={newFolderName}
+                onChange={e => setNewFolderName(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && createFolder()}
+                autoFocus
+                placeholder="Folder name…"
+                style={{
+                  flex: 1, padding: "4px 8px",
+                  background: "rgba(255,255,255,0.03)",
+                  border: `1px solid ${C.border}`, borderRadius: 3,
+                  color: C.text, fontSize: 12, fontFamily: "inherit", outline: "none",
+                }}
+              />
+            </div>
+          )}
+          <FolderPill
+            label="All Entries"
+            count={null}
+            active={activeFolderId === null}
+            onClick={() => selectFolder(null)}
+          />
+          {folders.map(f => (
+            <FolderPill
+              key={f.id}
+              label={f.name}
+              count={f.entry_count}
+              active={activeFolderId === f.id}
+              editable
+              onClick={() => selectFolder(f.id)}
+              onRename={name => renameFolder(f.id, name)}
+              onDelete={() => deleteFolderHandler(f.id)}
+            />
+          ))}
+        </div>
+
+        <SuggestionStrip
+          suggestions={suggestions}
+          onAccept={acceptSuggestion}
+          onDismiss={dismissSuggestion}
+        />
+
         {/* List */}
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {loading ? (
+          {loading || folderLoading ? (
             <div style={{ padding: "24px 16px", color: C.textMuted, fontSize: 13, textAlign: "center" }}>
               Loading…
             </div>
-          ) : entries.length === 0 ? (
+          ) : visibleEntries.length === 0 ? (
             <div style={{ padding: "24px 16px", color: C.textMuted, fontSize: 13, textAlign: "center", lineHeight: 1.6 }}>
-              No entries yet.<br />Write your first one.
+              {activeFolderId === null ? <>No entries yet.<br />Write your first one.</> : "No entries in this folder yet."}
             </div>
           ) : (
-            entries.map(entry => (
+            visibleEntries.map(entry => (
               <EntryItem
                 key={entry.id}
                 entry={entry}
@@ -379,13 +686,17 @@ export default function ThoughtBiography({ user, onNavigate }) {
         {/* Textarea / view */}
         <div style={{ flex: 1, overflow: "auto", padding: "36px 60px", maxWidth: 800, margin: "0 auto", width: "100%" }}>
           {mode === "view" ? (
-            <div style={{
-              color: C.text, fontSize: 17, lineHeight: 1.9,
-              fontFamily: "'EB Garamond', Georgia, serif",
-              whiteSpace: "pre-wrap", animation: "tb-fade 0.3s ease",
-            }}>
-              {activeEntry?.content}
-            </div>
+            openEntryLoading ? (
+              <div style={{ color: C.textMuted, fontSize: 14 }}>Loading…</div>
+            ) : (
+              <div style={{
+                color: C.text, fontSize: 17, lineHeight: 1.9,
+                fontFamily: "'EB Garamond', Georgia, serif",
+                whiteSpace: "pre-wrap", animation: "tb-fade 0.3s ease",
+              }}>
+                {draft}
+              </div>
+            )
           ) : (
             <textarea
               ref={textareaRef}

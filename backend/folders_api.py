@@ -338,13 +338,22 @@ def get_folder_entries(folder_id: str, current_user: dict = Depends(get_current_
             raise HTTPException(404, "Folder not found")
         rows = s.run("""
             MATCH (e:Entry)-[:IN_FOLDER]->(f:Folder {id: $id, user_id: $uid})
+            OPTIONAL MATCH (e)-[:SURFACES]->(c:Concept)
+            WITH e, collect(c.label)[0..5] AS concepts
             RETURN e.id AS id, e.content AS content, e.created_at AS created_at,
-                   e.emotional_tone AS emotional_tone, e.significance_score AS significance_score
+                   e.emotional_tone AS emotional_tone, e.significance_score AS significance_score,
+                   e.word_count AS word_count, concepts
             ORDER BY e.created_at DESC
         """, id=folder_id, uid=uid).data()
+    entries = []
+    for r in rows:
+        entry = dict(r)
+        entry["created_at"] = _ser_dt(entry.get("created_at"))
+        entry["excerpt"] = (entry.get("content") or "")[:280]
+        entries.append(entry)
     return {
         "folder": {"id": folder_id, "name": folder["name"]},
-        "entries": [{**r, "created_at": _ser_dt(r["created_at"])} for r in rows],
+        "entries": entries,
     }
 
 

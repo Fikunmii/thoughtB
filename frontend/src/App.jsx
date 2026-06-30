@@ -18,7 +18,6 @@ import TherapistMode        from "./pages/TherapistMode";
 import DigestSettings       from "./pages/DigestSettings";
 import ImportHistory        from "./pages/ImportHistory";
 import Billing              from "./pages/Billing";
-import Folders               from "./pages/Folders";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -27,7 +26,6 @@ const NAV = [
   { id: "home",          label: "Home",           icon: "⌂",  shortcut: "H", group: "main"     },
   { id: "billing",       label: "Upgrade",        icon: "✦",  shortcut: "U", group: "settings"  },
   { id: "journal",       label: "Journal",         icon: "✦",  shortcut: "J", group: "main"     },
-  { id: "folders",       label: "Folders",         icon: "▤",  shortcut: "F", group: "main"     },
   { id: "graph",         label: "Graph",           icon: "◉",  shortcut: "G", group: "explore"  },
   { id: "influence",     label: "Influence Trees", icon: "→",  shortcut: "I", group: "explore"  },
   { id: "temporal",      label: "Time Travel",     icon: "◌",  shortcut: "T", group: "explore"  },
@@ -56,7 +54,6 @@ function ViewRouter({ view, user, onNavigate }) {
   switch (view) {
     case "home":           return <Dashboard           {...props} />;
     case "journal":        return <ThoughtBiography    {...props} />;
-    case "folders":        return <Folders             {...props} />;
     case "graph":          return <ThoughtGraph        {...props} />;
     case "influence":      return <InfluenceTrees      {...props} />;
     case "temporal":       return <TemporalPlayback    {...props} />;
