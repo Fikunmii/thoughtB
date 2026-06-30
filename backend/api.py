@@ -142,6 +142,9 @@ register_search_routes(app)
 register_export_routes(app)
 register_reminders_sharing_routes(app)
 
+from folders_api import register_folder_routes
+register_folder_routes(app)
+
 try:
     from stripe_api import register_stripe_routes
     register_stripe_routes(app)
@@ -244,6 +247,14 @@ def create_entry(
 
     # ── Step 3: Write extracted data to graph ─────────────────────────────────
     write_extraction_to_graph(uid, entry_id, extraction)
+
+    # ── Step 4: Smart folders — auto-assign or queue a suggestion (non-fatal) ──
+    try:
+        from folders_api import process_entry_for_folders
+        concept_labels = [c.get("label", "").strip() for c in extraction.get("concepts", []) if c.get("label")]
+        process_entry_for_folders(uid, entry_id, concept_labels)
+    except Exception as _fe:
+        print(f"[folders] skipped for entry {entry_id}: {_fe}")
 
     return {
         "id":                entry_id,
