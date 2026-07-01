@@ -124,9 +124,19 @@ function ConceptTag({ label }) {
 }
 
 // ── Entry list item ───────────────────────────────────────────────────────────
+function parseDate(raw) {
+  if (!raw) return null;
+  const s = raw.replace(/(\.\d{3})\d+([+\-Z])/, "\").replace(/(\.\d{3})\d+$/, "");
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+function fmtDate(raw, opts) {
+  const d = parseDate(raw);
+  if (!d) return "—";
+  return d.toLocaleDateString("en-US", opts || { month: "short", day: "numeric", year: "numeric" });
+}
 function EntryItem({ entry, isActive, onClick }) {
-  const date = new Date(entry.created_at);
-  const label = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const label = fmtDate(entry.created_at);
 
   return (
     <div
@@ -639,10 +649,40 @@ export default function ThoughtBiography({ user, onNavigate }) {
           {mode === "view" && activeEntry ? (
             <>
               <span style={{ color: C.goldMuted, fontSize: 12, flex: 1 }}>
-                {new Date(activeEntry.created_at).toLocaleDateString("en-US", {
-                  weekday: "long", year: "numeric", month: "long", day: "numeric"
-                })}
+                {fmtDate(activeEntry.created_at, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
               </span>
+              <button
+                className="tb-btn"
+                onClick={() => { setMode("new"); }}
+                style={{
+                  padding: "5px 12px", background: "none",
+                  border: `1px solid ${C.border}`, borderRadius: 3,
+                  color: C.goldMuted, fontSize: 11, cursor: "pointer",
+                  fontFamily: "inherit", transition: "all 0.2s",
+                }}
+              >
+                Edit
+              </button>
+              <select
+                onChange={async e => {
+                  const fid = e.target.value;
+                  if (!fid) return;
+                  await authFetch(`${API}/folders/${fid}/entries/${activeEntry.id}`, { method: "POST" });
+                  await loadFolders();
+                  if (activeFolderId !== null) await selectFolder(activeFolderId);
+                  e.target.value = "";
+                }}
+                defaultValue=""
+                style={{
+                  padding: "5px 10px", background: "rgba(14,13,10,0.8)",
+                  border: `1px solid ${C.border}`, borderRadius: 3,
+                  color: C.goldMuted, fontSize: 11, cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                <option value="" disabled>Move to folder…</option>
+                {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
               <button
                 className="tb-btn"
                 onClick={() => deleteEntry(activeEntry.id)}

@@ -34,7 +34,7 @@ router = APIRouter(tags=["folders"])
 # ── Tunables ─────────────────────────────────────────────────────────────────
 AUTO_ASSIGN_MIN_SHARED   = 2     # min shared concepts with a folder's signature to auto-file
 AUTO_ASSIGN_MIN_OVERLAP  = 0.25  # min Jaccard overlap with a folder's signature to auto-file
-CLUSTER_MIN_SIZE         = 3     # min entries (including the new one) to propose a folder
+CLUSTER_MIN_SIZE         = 2     # min entries (including the new one) to propose a folder
 CLUSTER_MIN_SHARED       = 2     # min shared concepts between entries to count as "clustered"
 
 
