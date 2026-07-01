@@ -2,9 +2,10 @@ FROM node:20-slim
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
-COPY . .
 ARG VITE_API_URL
+ARG CACHEBUST=1
 ENV VITE_API_URL=$VITE_API_URL
+COPY . .
 RUN npm run build
 RUN npm install -g http-server
 EXPOSE 8080
