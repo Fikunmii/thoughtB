@@ -1,11 +1,8 @@
 [build]
-builder = "dockerfile"
-dockerfilePath = "frontend/Dockerfile"
-
-[build.dockerArguments]
-VITE_API_URL = "${{VITE_API_URL}}"
-CACHEBUST = "20260702"
+builder = "nixpacks"
+buildCommand = "npm install && npm run build"
 
 [deploy]
+startCommand = "npx http-server dist -p 8080"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
