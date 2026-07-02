@@ -96,12 +96,33 @@ def setup_indexes():
             "CREATE INDEX concept_user    IF NOT EXISTS FOR (c:Concept) ON (c.user_id)",
             "CREATE INDEX person_name     IF NOT EXISTS FOR (p:Person)  ON (p.name)",
             "CREATE FULLTEXT INDEX entry_content IF NOT EXISTS FOR (e:Entry) ON EACH [e.content]",
+            # Folder schema indexes - pre-creates labels so Neo4j stops warning about unknown types
+            "CREATE INDEX folder_user       IF NOT EXISTS FOR (f:Folder)            ON (f.user_id)",
+            "CREATE INDEX folder_id         IF NOT EXISTS FOR (f:Folder)            ON (f.id)",
+            "CREATE INDEX suggestion_user   IF NOT EXISTS FOR (fs:FolderSuggestion) ON (fs.user_id)",
+            "CREATE INDEX suggestion_status IF NOT EXISTS FOR (fs:FolderSuggestion) ON (fs.status)",
         ]
         for idx in indexes:
             try:
                 s.run(idx)
             except Exception:
                 pass  # index may already exist
+
+        # Pre-register relationship types so Neo4j does not warn on first-use queries.
+        # Creates and immediately deletes dummy nodes to touch the schema.
+        try:
+            s.run("""
+                MERGE (df:Folder {id: '__schema_init__'})
+                MERGE (dfs:FolderSuggestion {id: '__schema_init__'})
+                MERGE (de:Entry {id: '__schema_init__'})
+                ON CREATE SET de.user_id = '__schema_init__'
+                MERGE (de)-[:IN_FOLDER]->(df)
+                MERGE (de)-[:SUGGESTED_FOR]->(dfs)
+                WITH df, dfs, de
+                DETACH DELETE df, dfs, de
+            """)
+        except Exception:
+            pass
 
 
 @asynccontextmanager
