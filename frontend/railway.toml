@@ -2,9 +2,9 @@
 builder = "dockerfile"
 dockerfilePath = "frontend/Dockerfile"
 
-[build.args]
+[build.dockerArguments]
 VITE_API_URL = "${{VITE_API_URL}}"
-CACHEBUST = "20260701"
+CACHEBUST = "20260702"
 
 [deploy]
 restartPolicyType = "on_failure"
