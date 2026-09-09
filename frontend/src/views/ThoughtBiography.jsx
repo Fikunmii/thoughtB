@@ -126,7 +126,7 @@ function ConceptTag({ label }) {
 // ── Entry list item ───────────────────────────────────────────────────────────
 function parseDate(raw) {
   if (!raw) return null;
-  const s = raw.replace(/(\.\d{3})\d+([+\-Z])/, "\").replace(/(\.\d{3})\d+$/, "");
+  const s = raw.replace(/(\.\d{3})\d+([+\-Z])/, "$1$2").replace(/(\.\d{3})\d+$/, "$1");
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
 }
