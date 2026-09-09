@@ -183,6 +183,13 @@ except Exception as e:
 if BIOGRAPHY_AVAILABLE:
     register_biography_routes(app)
 
+try:
+    from chat_api import register_chat_routes
+    register_chat_routes(app)
+    print("✓ chat routes registered")
+except Exception as e:
+    print(f"⚠ chat_api not loaded: {e}")
+
 if TRANSCRIBE_AVAILABLE:
     app.include_router(transcribe_router)
 
