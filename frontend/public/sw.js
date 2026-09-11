@@ -20,7 +20,7 @@
  *     Fonts don't change. Cache forever.
  */
 
-const CACHE_VERSION   = "tb-v1";
+const CACHE_VERSION   = "tb-v2";
 const SHELL_CACHE     = `${CACHE_VERSION}-shell`;
 const API_CACHE       = `${CACHE_VERSION}-api`;
 const FONT_CACHE      = `${CACHE_VERSION}-fonts`;
@@ -37,7 +37,7 @@ const SHELL_ASSETS = [
 // API origin — matches VITE_API_URL
 const API_ORIGIN = self.location.origin.includes("localhost")
   ? "http://localhost:8000"
-  : "https://api.thoughtbiography.com"; // update this when you deploy
+  : "https://thoughtb-production.up.railway.app";
 
 // Routes that should never be cached (writes, streams, auth)
 const NEVER_CACHE = [
@@ -111,11 +111,7 @@ self.addEventListener("fetch", (event) => {
     // For navigation requests (HTML), always serve index.html from cache
     // so the React app handles routing client-side
     if (request.mode === "navigate") {
-      event.respondWith(
-        caches.match("/index.html").then(
-          (cached) => cached || fetch(request)
-        )
-      );
+      event.respondWith(networkFirst(request, SHELL_CACHE));
       return;
     }
     event.respondWith(cacheFirst(request, SHELL_CACHE));
