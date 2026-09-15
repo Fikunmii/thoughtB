@@ -369,7 +369,7 @@ export default function App() {
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 16,
                 flexWrap: "wrap",
               }}>
-                ✦ Welcome to {subBanner.charAt(0).toUpperCase() + subBanner.slice(1)}! Your 14-day free trial has started.
+                ✦ Welcome to {subBanner.charAt(0).toUpperCase() + subBanner.slice(1)}! Your subscription is active.
                 <button onClick={() => setSubBanner(null)} style={{ background: "transparent", border: "none", color: "#c8a96e", cursor: "pointer", fontSize: 16 }}>×</button>
               </div>
             )}

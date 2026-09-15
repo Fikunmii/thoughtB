@@ -309,6 +309,8 @@ export default function ThoughtBiography({ user, onNavigate }) {
   const [draft,        setDraft]        = useState("");
   const [saving,       setSaving]       = useState(false);
   const [saveResult,   setSaveResult]   = useState(null);  // {concepts, summary}
+  const [paywall,      setPaywall]      = useState(null);  // {message} when free-tier limit hit
+  const [upgrading,    setUpgrading]    = useState(null);  // plan key currently starting checkout
   const [loading,      setLoading]      = useState(true);
   const [deleting,     setDeleting]     = useState(false);
   const [wordCount,    setWordCount]    = useState(0);
@@ -482,6 +484,11 @@ export default function ThoughtBiography({ user, onNavigate }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: draft }),
       });
+      if (res.status === 402) {
+        const d = await res.json().catch(() => ({}));
+        setPaywall({ message: d.detail || "Free tier limit reached (30 entries). Upgrade for unlimited entries." });
+        return;
+      }
       if (!res.ok) throw new Error("Save failed");
       const d = await res.json();
       setSaveResult(d);
@@ -494,6 +501,26 @@ export default function ThoughtBiography({ user, onNavigate }) {
       setSaveResult({ error: "Save failed — check connection." });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleUpgrade(planKey) {
+    setUpgrading(planKey);
+    try {
+      const res = await authFetch(`${API}/subscription/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: planKey }),
+      });
+      const { checkout_url } = await res.json();
+      if (checkout_url) {
+        window.location.href = checkout_url;
+        return; // navigating away
+      }
+      throw new Error("No checkout URL returned");
+    } catch (e) {
+      setUpgrading(null);
+      setPaywall(p => ({ ...(p || {}), message: "Couldn't start checkout — try again from Billing." }));
     }
   }
 
@@ -812,6 +839,59 @@ export default function ThoughtBiography({ user, onNavigate }) {
           </div>
         )}
       </div>
+      )}
+
+      {paywall && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 1000,
+          background: "rgba(10,9,7,0.75)", backdropFilter: "blur(3px)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }}>
+          <div style={{
+            width: "min(420px, 100%)", background: C.surface, border: `1px solid ${C.border}`,
+            borderRadius: 10, padding: "28px 26px", animation: "tb-fade 0.25s ease",
+          }}>
+            <div style={{ color: C.goldMuted, fontSize: 11, letterSpacing: "0.12em", marginBottom: 10 }}>
+              FREE TIER LIMIT REACHED
+            </div>
+            <div style={{ color: C.text, fontSize: 15, lineHeight: 1.5, marginBottom: 22 }}>
+              {paywall.message}
+            </div>
+            <button
+              className="tb-save"
+              disabled={upgrading === "personal"}
+              onClick={() => handleUpgrade("personal")}
+              style={{
+                width: "100%", padding: "12px 0", marginBottom: 10,
+                background: "rgba(200,169,110,0.12)", border: `1px solid ${C.gold}`,
+                borderRadius: 6, color: C.gold, fontSize: 14, cursor: "pointer",
+                opacity: upgrading === "personal" ? 0.6 : 1,
+              }}
+            >
+              {upgrading === "personal" ? "Starting checkout…" : "Upgrade to Personal — $15.99/mo"}
+            </button>
+            <button
+              className="tb-btn"
+              onClick={() => { setPaywall(null); onNavigate?.("billing"); }}
+              style={{
+                width: "100%", padding: "10px 0", background: "transparent",
+                border: `1px solid ${C.border}`, borderRadius: 6, color: C.textMuted,
+                fontSize: 13, cursor: "pointer", marginBottom: 10,
+              }}
+            >
+              See all plans
+            </button>
+            <button
+              onClick={() => setPaywall(null)}
+              style={{
+                width: "100%", padding: "8px 0", background: "transparent", border: "none",
+                color: C.textMuted, fontSize: 12, cursor: "pointer", opacity: 0.7,
+              }}
+            >
+              Not now
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

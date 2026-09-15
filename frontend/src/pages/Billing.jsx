@@ -11,20 +11,19 @@ const C = {
 const PLANS = [
   {
     key: "free", name: "Free", price: "$0", period: "forever",
+    trial: "Your 30-entry trial",
     features: ["30 journal entries", "Core concept graph", "Basic contradiction detection", "5 AI queries per day"],
     cta: null,
   },
   {
     key: "personal", name: "Personal", price: "$15.99", period: "per month",
-    trial: "14-day free trial",
     features: ["Unlimited entries", "Full concept drift tracking", "Influence trees visualization", "Time travel playback", "AI biography generation", "Semantic search", "Full data export"],
-    cta: "Start 14-Day Free Trial", popular: true,
+    cta: "Upgrade to Personal", popular: true,
   },
   {
     key: "professional", name: "Professional", price: "$49.99", period: "per month",
-    trial: "14-day free trial",
     features: ["Everything in Personal", "Share graph with therapist or coach", "Annotation layer for shared views", "Up to 5 share links", "Priority support"],
-    cta: "Start Free Trial",
+    cta: "Upgrade to Professional",
   },
 ];
 

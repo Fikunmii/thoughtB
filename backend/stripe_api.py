@@ -1,8 +1,11 @@
 """
 stripe_api.py — Stripe subscription management for Thought Biography
 Plans:
-  Personal     $15.99/mo  price_1TnbLAKhwAvA6zUqJI8YJYZI  (14-day trial)
-  Professional $49.99/mo  price_1TnbMDKhwAvA6zUqkE0QkPxw  (14-day trial)
+  Personal     $15.99/mo  price_1TnbLAKhwAvA6zUqJI8YJYZI
+  Professional $49.99/mo  price_1TnbMDKhwAvA6zUqkE0QkPxw
+
+No Stripe trial period: the 30 free entries on the free tier ARE the trial.
+Checkout always charges immediately — no stacked 14-day trial on top.
 """
 import os, stripe
 from fastapi import APIRouter, Depends, Request, HTTPException
@@ -17,13 +20,11 @@ PLANS = {
         "price_id":   "price_1TnbLAKhwAvA6zUqJI8YJYZI",
         "name":       "Personal",
         "amount":     1599,
-        "trial_days": 14,
     },
     "professional": {
         "price_id":   "price_1TnbMDKhwAvA6zUqkE0QkPxw",
         "name":       "Professional",
         "amount":     4999,
-        "trial_days": 14,
     },
 }
 
@@ -114,7 +115,6 @@ def create_checkout(body: dict, current_user: dict = Depends(get_current_user)):
         customer=customer_id,
         mode="subscription",
         line_items=[{"price": plan["price_id"], "quantity": 1}],
-        subscription_data={"trial_period_days": plan["trial_days"]},
         success_url=f"{FRONTEND_URL}?subscribed=true&plan={plan_key}",
         cancel_url=f"{FRONTEND_URL}?subscribed=false",
         metadata={"user_id": current_user["user_id"], "plan": plan_key},
