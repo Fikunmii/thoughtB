@@ -42,8 +42,8 @@ function ConceptPanel({ concept, onClose, onNavigate }) {
 
   return (
     <div style={{
-      position: "absolute", top: 20, right: 20,
-      width: 300, maxHeight: "calc(100% - 40px)",
+      position: "absolute", top: 20, right: 20, left: "auto",
+      width: "min(300px, calc(100vw - 40px))", maxHeight: "calc(100% - 40px)",
       background: C.surface, border: `1px solid ${C.border}`,
       borderRadius: 4, overflow: "auto",
       boxShadow: "0 4px 32px rgba(0,0,0,0.6)",

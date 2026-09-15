@@ -235,10 +235,10 @@ export default function Search() {
       {/* Entry detail drawer */}
       {selected && (
         <div style={{
-          position: "fixed", right: 0, top: 0, bottom: 0, width: 480,
+          position: "fixed", right: 0, top: 0, bottom: 0, width: "min(480px, 100vw)",
           background: "rgba(12,11,9,0.98)",
           borderLeft: `1px solid ${C.border}`,
-          padding: "28px 28px",
+          padding: "clamp(18px, 5vw, 28px)",
           overflowY: "auto",
           zIndex: 100,
           animation: "s-fade 0.2s ease",

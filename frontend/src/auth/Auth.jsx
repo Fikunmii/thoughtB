@@ -107,7 +107,7 @@ export default function Auth({ onAuthenticated }) {
 
   return (
     <div style={{
-      minHeight: "100vh",
+      minHeight: "100dvh",
       background: "#0f0e0b",
       display: "flex",
       alignItems: "center",
@@ -115,6 +115,8 @@ export default function Auth({ onAuthenticated }) {
       fontFamily: "'EB Garamond', Georgia, serif",
       position: "relative",
       overflow: "hidden",
+      padding: "16px",
+      boxSizing: "border-box",
     }}>
       {/* Background grain texture */}
       <div style={{
@@ -134,8 +136,9 @@ export default function Auth({ onAuthenticated }) {
       }} />
 
       <div style={{
-        width: 440,
-        padding: "48px 40px",
+        width: "min(440px, 100%)",
+        boxSizing: "border-box",
+        padding: "clamp(28px, 6vw, 48px) clamp(20px, 6vw, 40px)",
         background: "rgba(20,18,14,0.95)",
         border: "1px solid rgba(180,140,80,0.2)",
         borderRadius: 4,
@@ -167,7 +170,7 @@ export default function Auth({ onAuthenticated }) {
           {["login", "register"].map(m => (
             <button key={m} onClick={() => { setMode(m); setError(""); }}
               style={{
-                flex: 1, padding: "10px 0",
+                flex: 1, padding: "10px 0", minHeight: 44,
                 background: "none", border: "none", cursor: "pointer",
                 color: mode === m ? "#c8a96e" : "rgba(200,169,110,0.35)",
                 fontSize: 12, letterSpacing: "0.14em",
@@ -210,7 +213,7 @@ export default function Auth({ onAuthenticated }) {
 
         <button onClick={submit} disabled={loading} style={{
           width: "100%", marginTop: 24,
-          padding: "14px",
+          padding: "14px", minHeight: 44,
           background: loading ? "rgba(180,140,80,0.12)" : "rgba(180,140,80,0.15)",
           border: "1px solid rgba(180,140,80,0.4)",
           borderRadius: 3,
@@ -253,7 +256,7 @@ function Field({ label, type, value, onChange, placeholder, onEnter }) {
         placeholder={placeholder}
         style={{
           width: "100%", boxSizing: "border-box",
-          padding: "11px 14px",
+          padding: "11px 14px", minHeight: 44,
           background: "rgba(255,255,255,0.03)",
           border: "1px solid rgba(180,140,80,0.2)",
           borderRadius: 3,

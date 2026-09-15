@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import { authFetch } from "../auth/Auth";
 import { GraphSkeleton, EmptyState } from "../components/ErrorBoundary";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -33,6 +34,7 @@ const css = `
 `;
 
 export default function InfluenceTrees() {
+  const isMobile = useIsMobile();
   const svgRef  = useRef(null);
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
@@ -193,15 +195,18 @@ export default function InfluenceTrees() {
 
   return (
     <div style={{
-      display: "flex", height: "100%",
+      display: "flex", flexDirection: isMobile ? "column" : "row", height: "100%",
+      overflowY: isMobile ? "auto" : "visible",
       fontFamily: "'EB Garamond', Georgia, serif",
       color: C.text, position: "relative",
     }}>
       {/* Controls */}
       <div style={{
-        width: 220, flexShrink: 0,
-        padding: "24px 20px",
-        borderRight: `1px solid ${C.border}`,
+        width: isMobile ? "100%" : 220, flexShrink: 0,
+        maxHeight: isMobile ? "40vh" : "none", overflowY: isMobile ? "auto" : "visible",
+        padding: isMobile ? "16px 16px" : "24px 20px",
+        borderRight: isMobile ? "none" : `1px solid ${C.border}`,
+        borderBottom: isMobile ? `1px solid ${C.border}` : "none",
         display: "flex", flexDirection: "column", gap: 20,
         background: C.surface,
       }}>
@@ -275,8 +280,9 @@ export default function InfluenceTrees() {
       {/* Detail panel */}
       {selected && (
         <div style={{
-          position: "absolute", right: 20, top: 20,
-          width: 300, padding: 22,
+          position: "absolute", right: isMobile ? 10 : 20, left: isMobile ? 10 : "auto", top: isMobile ? 10 : 20,
+          width: isMobile ? "auto" : 300, maxWidth: "min(300px, calc(100vw - 20px))",
+          padding: isMobile ? 16 : 22,
           background: "rgba(12,11,9,0.97)",
           border: `1px solid ${C.border}`,
           borderRadius: 4,

@@ -1,4 +1,63 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: none; -ms-overflow-style: none; }
 *::-webkit-scrollbar { display: none; }
 html, body, #root { width: 100%; height: 100%; overflow: hidden; }
-body { background: #0f0e0b; }
+body { background: #0f0e0b; overscroll-behavior: none; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* ── Responsive design tokens ─────────────────────────────────────────────────
+   Reused across components for consistent breakpoints/spacing. Breakpoints
+   mirror the ones used in the JS `useIsMobile`/`useBreakpoint` hooks so CSS
+   and JS branch at the same widths. Safe-area vars fall back to 0 on devices
+   without a notch/home-indicator (e.g. Android, older iPhones, desktop). */
+:root {
+  --tb-bp-sm: 480px;   /* small phones */
+  --tb-bp-md: 768px;   /* large phones / small tablets */
+  --tb-bp-lg: 1024px;  /* tablets / small laptops */
+
+  --tb-space-1: 4px;
+  --tb-space-2: 8px;
+  --tb-space-3: 12px;
+  --tb-space-4: 16px;
+  --tb-space-5: 24px;
+  --tb-space-6: 32px;
+
+  --tb-touch-min: 44px; /* Apple/Google minimum recommended touch target */
+
+  --tb-safe-top:    env(safe-area-inset-top, 0px);
+  --tb-safe-right:  env(safe-area-inset-right, 0px);
+  --tb-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tb-safe-left:   env(safe-area-inset-left, 0px);
+}
+
+/* ── Utility classes (opt-in, don't affect anything unless applied) ─────────── */
+.tb-safe-top    { padding-top:    calc(var(--tb-space-3) + var(--tb-safe-top)); }
+.tb-safe-bottom { padding-bottom: calc(var(--tb-space-3) + var(--tb-safe-bottom)); }
+.tb-safe-x      { padding-left: calc(var(--tb-space-3) + var(--tb-safe-left)); padding-right: calc(var(--tb-space-3) + var(--tb-safe-right)); }
+
+.tb-mobile-only  { display: none; }
+.tb-desktop-only { display: initial; }
+
+.tb-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.tb-scroll-y { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+
+/* ── Mobile-scoped safety net ────────────────────────────────────────────────
+   Only fires under 768px, so desktop layout/behavior is completely untouched.
+   `!important` here is intentional and scoped: it's the only reliable way to
+   raise touch-target sizing above the many fixed-px inline styles throughout
+   the app without rewriting every component. */
+@media (max-width: 768px) {
+  .tb-mobile-only  { display: initial; }
+  .tb-desktop-only { display: none; }
+
+  html, body, #root { overflow-x: hidden; }
+
+  button, a[role="button"], input[type="button"], input[type="submit"] {
+    min-height: var(--tb-touch-min) !important;
+  }
+  input, select, textarea {
+    font-size: max(16px, 1em) !important; /* prevents iOS Safari auto-zoom on focus; inline styles set smaller px values so this needs !important, scoped to mobile only */
+  }
+}
+
+@media (max-width: 480px) {
+  :root { --tb-space-5: 18px; --tb-space-6: 24px; }
+}

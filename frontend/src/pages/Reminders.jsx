@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { authFetch } from "../auth/Auth";
 import { Spinner, EmptyState } from "../components/ErrorBoundary";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -67,6 +68,7 @@ function PromptCard({ prompt, concept, type, date, onWrite, delay = 0 }) {
 // ── Reminders view ────────────────────────────────────────────────────────────
 export default function Reminders({ onNavigate }) {
   inject();
+  const isMobile = useIsMobile();
   const [prompts,    setPrompts]    = useState(null);
   const [digest,     setDigest]     = useState(null);
   const [loading,    setLoading]    = useState(true);
@@ -122,11 +124,12 @@ export default function Reminders({ onNavigate }) {
 
   return (
     <div style={{
-      display: "grid", gridTemplateColumns: "1fr 300px", height: "100%",
+      display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 300px",
+      height: "100%", overflowY: isMobile ? "auto" : "visible",
       fontFamily: "'EB Garamond', Georgia, serif", color: C.text,
     }}>
       {/* Main area */}
-      <div style={{ padding: "32px 36px", overflowY: "auto" }}>
+      <div style={{ padding: isMobile ? "20px 16px" : "32px 36px", overflowY: isMobile ? "visible" : "auto" }}>
         {/* Digest banner */}
         {digest && (
           <div style={{
@@ -188,8 +191,9 @@ export default function Reminders({ onNavigate }) {
 
       {/* Settings sidebar */}
       <div style={{
-        borderLeft: `1px solid ${C.border}`,
-        padding: "28px 22px",
+        borderLeft: isMobile ? "none" : `1px solid ${C.border}`,
+        borderTop: isMobile ? `1px solid ${C.border}` : "none",
+        padding: isMobile ? "20px 16px" : "28px 22px",
         background: C.surface,
         overflowY: "auto",
         display: "flex", flexDirection: "column", gap: 22,

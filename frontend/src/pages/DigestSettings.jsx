@@ -260,7 +260,7 @@ export default function DigestSettings({ user }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 32 }}>
 
         {/* ── Left: settings ─────────────────────────────────────────── */}
         <div>

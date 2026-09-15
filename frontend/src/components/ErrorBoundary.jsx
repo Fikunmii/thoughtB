@@ -102,7 +102,7 @@ export function DashboardSkeleton() {
   return (
     <div style={{ padding: 32, display: "flex", flexDirection: "column", gap: 24 }}>
       <Skeleton width={200} height={28} />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
         {[1,2,3].map(i => (
           <div key={i} style={{ padding: 20, border: `1px solid ${parchment.border}`, borderRadius: 4 }}>
             <Skeleton width={80}  height={11} style={{ marginBottom: 12 }} />
@@ -111,7 +111,7 @@ export function DashboardSkeleton() {
           </div>
         ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
         <div style={{ padding: 20, border: `1px solid ${parchment.border}`, borderRadius: 4 }}>
           <Skeleton width={160} height={14} style={{ marginBottom: 16 }} />
           {[1,2,3].map(i => <EntryCardSkeleton key={i} />)}

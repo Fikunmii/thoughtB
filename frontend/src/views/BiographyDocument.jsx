@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { authFetch } from "../auth/Auth";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -205,6 +206,7 @@ function HistoryItem({ bio, onClick }) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function BiographyDocument({ user, onNavigate }) {
   inject();
+  const isMobile = useIsMobile();
 
   const [tab,        setTab]        = useState("generate"); // generate | history
   const [generating, setGenerating] = useState(false);
@@ -326,10 +328,16 @@ export default function BiographyDocument({ user, onNavigate }) {
   const hasBiography = sections.length > 0 || streamText.length > 0;
 
   return (
-    <div style={{ display: "flex", height: "100%", fontFamily: "'EB Garamond', Georgia, serif", color: C.text }}>
+    <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", height: "100%", overflowY: isMobile ? "auto" : "visible", fontFamily: "'EB Garamond', Georgia, serif", color: C.text }}>
 
       {/* ── Left panel ──────────────────────────────────────────────── */}
-      <div style={{ width: 280, flexShrink: 0, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", background: "rgba(14,13,10,0.5)" }}>
+      <div style={{
+        width: isMobile ? "100%" : 280, flexShrink: 0,
+        maxHeight: isMobile ? "50vh" : "none",
+        borderRight: isMobile ? "none" : `1px solid ${C.border}`,
+        borderBottom: isMobile ? `1px solid ${C.border}` : "none",
+        display: "flex", flexDirection: "column", background: "rgba(14,13,10,0.5)",
+      }}>
         <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ color: C.gold, fontSize: 14 }}>Biography</div>
           <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>Your intellectual life, written back to you</div>

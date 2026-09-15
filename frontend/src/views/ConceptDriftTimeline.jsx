@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { authFetch } from "../auth/Auth";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -218,6 +219,8 @@ function ConceptItem({ concept, isActive, onClick }) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function ConceptDriftTimeline({ user, onNavigate }) {
   inject();
+  const isMobile = useIsMobile();
+  const [mobileShowList, setMobileShowList] = useState(true);
 
   const [concepts,  setConcepts]  = useState([]);
   const [active,    setActive]    = useState(null);
@@ -285,7 +288,8 @@ export default function ConceptDriftTimeline({ user, onNavigate }) {
     <div style={{ display: "flex", height: "100%", fontFamily: "'EB Garamond', Georgia, serif", color: C.text }}>
 
       {/* Left — concept list */}
-      <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", background: "rgba(14,13,10,0.5)" }}>
+      {(!isMobile || mobileShowList) && (
+      <div style={{ width: isMobile ? "100%" : 260, flexShrink: 0, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", background: "rgba(14,13,10,0.5)" }}>
         <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ color: C.gold, fontSize: 13 }}>Concept Drift</div>
           <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>How your thinking has shifted</div>
@@ -296,14 +300,23 @@ export default function ConceptDriftTimeline({ user, onNavigate }) {
               key={i}
               concept={c}
               isActive={active?.label === c.label}
-              onClick={() => setActive(c)}
+              onClick={() => { setActive(c); setMobileShowList(false); }}
             />
           ))}
         </div>
       </div>
+      )}
 
       {/* Right — drift chart */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px 36px" }}>
+      {(!isMobile || !mobileShowList) && (
+      <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "16px 16px" : "28px 36px" }}>
+        {isMobile && (
+          <button onClick={() => setMobileShowList(true)} style={{
+            background: "none", border: `1px solid ${C.border}`, borderRadius: 3,
+            color: C.gold, fontFamily: "inherit", fontSize: 12,
+            cursor: "pointer", padding: "8px 14px", minHeight: 44, marginBottom: 16,
+          }}>← Concepts</button>
+        )}
         {active ? (
           <div style={{ maxWidth: 720, animation: "dt-fade 0.3s ease" }}>
             <div style={{ marginBottom: 20 }}>
@@ -335,6 +348,7 @@ export default function ConceptDriftTimeline({ user, onNavigate }) {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

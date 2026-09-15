@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { authFetch } from "../auth/Auth";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -300,6 +301,8 @@ function SuggestionStrip({ suggestions, onAccept, onDismiss }) {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ThoughtBiography({ user, onNavigate }) {
   injectStyles();
+  const isMobile = useIsMobile();
+  const [mobileShowList, setMobileShowList] = useState(true);
 
   const [entries,      setEntries]      = useState([]);
   const [activeId,     setActiveId]     = useState(null);
@@ -439,6 +442,7 @@ export default function ThoughtBiography({ user, onNavigate }) {
     setActiveId(null);
     setDraft("");
     setSaveResult(null);
+    setMobileShowList(false);
   }
 
   const [openEntryLoading, setOpenEntryLoading] = useState(false);
@@ -447,6 +451,7 @@ export default function ThoughtBiography({ user, onNavigate }) {
     setMode("view");
     setActiveId(entry.id);
     setSaveResult(null);
+    setMobileShowList(false);
     // List/folder responses don't include full content — fetch it.
     if (entry.content != null) {
       setDraft(entry.content);
@@ -527,8 +532,9 @@ export default function ThoughtBiography({ user, onNavigate }) {
     }}>
 
       {/* ── Entry list (left) ─────────────────────────────────────── */}
+      {(!isMobile || mobileShowList) && (
       <div style={{
-        width: 280, flexShrink: 0,
+        width: isMobile ? "100%" : 280, flexShrink: 0,
         borderRight: `1px solid ${C.border}`,
         display: "flex", flexDirection: "column",
         background: "rgba(14,13,10,0.6)",
@@ -635,13 +641,25 @@ export default function ThoughtBiography({ user, onNavigate }) {
           )}
         </div>
       </div>
+      )}
 
       {/* ── Writing area (right) ──────────────────────────────────── */}
+      {(!isMobile || !mobileShowList) && (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+        {isMobile && (
+          <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.border}` }}>
+            <button onClick={() => setMobileShowList(true)} style={{
+              background: "none", border: `1px solid ${C.border}`, borderRadius: 3,
+              color: C.gold, fontFamily: "inherit", fontSize: 12,
+              cursor: "pointer", padding: "8px 14px", minHeight: 44,
+            }}>← Entries</button>
+          </div>
+        )}
 
         {/* Toolbar */}
         <div style={{
-          padding: "10px 28px",
+          padding: isMobile ? "10px 16px" : "10px 28px",
           borderBottom: `1px solid ${C.border}`,
           display: "flex", alignItems: "center", gap: 10,
           background: "rgba(14,13,10,0.4)",
@@ -794,6 +812,7 @@ export default function ThoughtBiography({ user, onNavigate }) {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import * as d3 from "d3";
 import { authFetch } from "../auth/Auth";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -139,7 +140,7 @@ function RadialMap({ pairs, onSelect }) {
 }
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
-function DetailPanel({ pair, onResolved }) {
+function DetailPanel({ pair, onResolved, isMobile, onBack }) {
   const [analysis,    setAnalysis]    = useState(null);
   const [analyzing,   setAnalyzing]   = useState(false);
   const [resolving,   setResolving]   = useState(false);
@@ -164,6 +165,7 @@ function DetailPanel({ pair, onResolved }) {
   }, [pair?.concept_a, pair?.concept_b]);
 
   if (!pair) {
+    if (isMobile) return null;
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, fontSize: 14, fontStyle: "italic" }}>
         Select a tension to examine it
@@ -204,7 +206,14 @@ function DetailPanel({ pair, onResolved }) {
   }
 
   return (
-    <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto", animation: "cw-fade 0.3s ease" }}>
+    <div style={{ flex: 1, padding: isMobile ? "16px 16px" : "28px 32px", overflowY: "auto", animation: "cw-fade 0.3s ease" }}>
+      {isMobile && (
+        <button onClick={onBack} style={{
+          background: "none", border: `1px solid ${C.border}`, borderRadius: 3,
+          color: C.gold, fontFamily: "inherit", fontSize: 12,
+          cursor: "pointer", padding: "8px 14px", minHeight: 44, marginBottom: 16,
+        }}>← Tensions</button>
+      )}
       {/* Header */}
       <div style={{ color: C.goldMuted, fontSize: 10, letterSpacing: "0.14em", marginBottom: 10 }}>ACTIVE TENSION</div>
       <div style={{ fontSize: 20, color: C.text, fontStyle: "italic", marginBottom: 8 }}>
@@ -293,6 +302,7 @@ function DetailPanel({ pair, onResolved }) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function ContradictionWorkflow({ user, onNavigate }) {
   injectStyles();
+  const isMobile = useIsMobile();
 
   const [pairs,   setPairs]   = useState([]);
   const [selected, setSelected] = useState(null);
@@ -333,8 +343,9 @@ export default function ContradictionWorkflow({ user, onNavigate }) {
     <div style={{ display: "flex", height: "100%", fontFamily: "'EB Garamond', Georgia, serif", color: C.text }}>
 
       {/* Left — map + list */}
+      {(!isMobile || !selected) && (
       <div style={{
-        width: 480, flexShrink: 0,
+        width: isMobile ? "100%" : 480, flexShrink: 0,
         borderRight: `1px solid ${C.border}`,
         display: "flex", flexDirection: "column",
       }}>
@@ -395,9 +406,17 @@ export default function ContradictionWorkflow({ user, onNavigate }) {
           </div>
         )}
       </div>
+      )}
 
       {/* Right — detail */}
-      <DetailPanel pair={selected} onResolved={p => { setPairs(prev => prev.filter(x => !(x.concept_a === p.concept_a && x.concept_b === p.concept_b))); setSelected(null); }} />
+      {(!isMobile || selected) && (
+      <DetailPanel
+        pair={selected}
+        isMobile={isMobile}
+        onBack={() => setSelected(null)}
+        onResolved={p => { setPairs(prev => prev.filter(x => !(x.concept_a === p.concept_a && x.concept_b === p.concept_b))); setSelected(null); }}
+      />
+      )}
     </div>
   );
 }

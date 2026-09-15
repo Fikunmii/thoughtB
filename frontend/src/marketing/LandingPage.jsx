@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 // ── Fonts injected via Google Fonts ──────────────────────────────────────────
 const FONTS = `
@@ -468,7 +469,7 @@ function PricingCard({ tier, price, sub, features, cta, onCta, highlighted = fal
       </div>
 
       <button onClick={onCta} style={{
-        padding: "13px",
+        padding: "13px", minHeight: 44,
         background: highlighted ? "rgba(200,169,110,0.18)" : "none",
         border: `1px solid ${highlighted ? "rgba(200,169,110,0.5)" : T.border}`,
         borderRadius: 3,
@@ -510,17 +511,32 @@ function Testimonial({ quote, name, role, delay = 0 }) {
 export default function LandingPage({ onSignIn, onGetStarted }) {
   injectGlobal();
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const scrollRef = useRef(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    const el = scrollRef.current;
+    if (!el) return;
+    const handleScroll = () => setScrolled(el.scrollTop > 40);
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const section = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  // Close the mobile nav menu automatically if the viewport grows back to desktop
+  useEffect(() => { if (!isMobile) setMenuOpen(false); }, [isMobile]);
+
+  const section = (id) => {
+    setMenuOpen(false);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: T.body }}>
+    <div ref={scrollRef} style={{
+      height: "100dvh", overflowY: "auto", overflowX: "hidden",
+      WebkitOverflowScrolling: "touch",
+      background: T.bg, fontFamily: T.body,
+    }}>
 
       {/* ── Grain overlay ──────────────────────────────────────────────────── */}
       <div style={{
@@ -532,57 +548,97 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
       {/* ── Navbar ─────────────────────────────────────────────────────────── */}
       <nav style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-        padding: "0 48px",
-        height: 64,
+        padding: isMobile ? "0 16px" : "0 clamp(16px, 5vw, 48px)",
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        height: isMobile ? "calc(56px + env(safe-area-inset-top, 0px))" : 64,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: scrolled ? "rgba(13,12,9,0.95)" : "transparent",
-        borderBottom: scrolled ? `1px solid ${T.border}` : "1px solid transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
+        background: (scrolled || menuOpen) ? "rgba(13,12,9,0.95)" : "transparent",
+        borderBottom: (scrolled || menuOpen) ? `1px solid ${T.border}` : "1px solid transparent",
+        backdropFilter: (scrolled || menuOpen) ? "blur(12px)" : "none",
         transition: "all 0.3s",
       }}>
-        <div style={{ color: T.gold, fontFamily: T.serif, fontSize: 18, fontStyle: "italic", letterSpacing: "0.04em" }}>
+        <div style={{ color: T.gold, fontFamily: T.serif, fontSize: isMobile ? 16 : 18, fontStyle: "italic", letterSpacing: "0.04em" }}>
           Thought Biography
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-          {[["How it works", "how-it-works"], ["Features", "features"], ["Pricing", "pricing"]].map(([l, id]) => (
-            <button key={id} className="lp-nav-link" onClick={() => section(id)} style={{
-              background: "none", border: "none",
-              color: T.creamMuted, fontSize: 14,
+        {isMobile ? (
+          <button onClick={() => setMenuOpen(o => !o)} aria-label="Menu" aria-expanded={menuOpen} style={{
+            background: "none", border: `1px solid ${T.border}`, borderRadius: 3,
+            color: T.gold, fontSize: 18, cursor: "pointer",
+            width: 44, height: 44, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>{menuOpen ? "×" : "☰"}</button>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
+            {[["How it works", "how-it-works"], ["Features", "features"], ["Pricing", "pricing"]].map(([l, id]) => (
+              <button key={id} className="lp-nav-link" onClick={() => section(id)} style={{
+                background: "none", border: "none",
+                color: T.creamMuted, fontSize: 14,
+                cursor: "pointer", fontFamily: T.body,
+                letterSpacing: "0.04em",
+              }}>{l}</button>
+            ))}
+            <button className="lp-btn-ghost" onClick={onSignIn} style={{
+              padding: "8px 20px",
+              background: "none",
+              border: `1px solid ${T.border}`,
+              borderRadius: 3,
+              color: T.cream, fontSize: 13,
               cursor: "pointer", fontFamily: T.body,
-              letterSpacing: "0.04em",
+              letterSpacing: "0.06em",
+              transition: "all 0.2s",
+            }}>Sign in</button>
+          </div>
+        )}
+      </nav>
+
+      {/* ── Mobile nav menu (slides down under the navbar) ──────────────────── */}
+      {isMobile && menuOpen && (
+        <div style={{
+          position: "fixed", zIndex: 99,
+          top: "calc(56px + env(safe-area-inset-top, 0px))", left: 0, right: 0,
+          background: "rgba(13,12,9,0.98)", backdropFilter: "blur(12px)",
+          borderBottom: `1px solid ${T.border}`,
+          display: "flex", flexDirection: "column", padding: "8px 16px 16px",
+        }}>
+          {[["How it works", "how-it-works"], ["Features", "features"], ["Pricing", "pricing"]].map(([l, id]) => (
+            <button key={id} onClick={() => section(id)} style={{
+              background: "none", border: "none", textAlign: "left",
+              color: T.creamMuted, fontSize: 16, padding: "14px 4px", minHeight: 44,
+              borderBottom: `1px solid ${T.border}`,
+              cursor: "pointer", fontFamily: T.body,
             }}>{l}</button>
           ))}
-          <button className="lp-btn-ghost" onClick={onSignIn} style={{
-            padding: "8px 20px",
-            background: "none",
-            border: `1px solid ${T.border}`,
-            borderRadius: 3,
-            color: T.cream, fontSize: 13,
-            cursor: "pointer", fontFamily: T.body,
-            letterSpacing: "0.06em",
-            transition: "all 0.2s",
+          <button onClick={() => { setMenuOpen(false); onSignIn(); }} style={{
+            marginTop: 14, padding: "12px 20px", minHeight: 44,
+            background: "rgba(200,169,110,0.14)",
+            border: `1px solid ${T.border}`, borderRadius: 3,
+            color: T.cream, fontSize: 14,
+            cursor: "pointer", fontFamily: T.body, letterSpacing: "0.06em",
           }}>Sign in</button>
         </div>
-      </nav>
+      )}
 
       {/* ── Hero ───────────────────────────────────────────────────────────── */}
       <section style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex", alignItems: "center",
-        padding: "120px 48px 80px",
+        padding: "clamp(88px, 18vw, 120px) clamp(20px, 6vw, 48px) clamp(48px, 10vw, 80px)",
         position: "relative", overflow: "hidden",
       }}>
-        {/* Graph background */}
+        {/* Graph background — pulled back and faded on mobile so it doesn't
+            sit on top of the (now full-width) headline text */}
         <div style={{
-          position: "absolute", right: "-5%", top: "10%",
-          width: "54%", height: "80%",
-          opacity: 0.65,
+          position: "absolute",
+          right: isMobile ? "-25%" : "-5%", top: isMobile ? "4%" : "10%",
+          width: isMobile ? "85%" : "54%", height: isMobile ? "45%" : "80%",
+          opacity: isMobile ? 0.22 : 0.65,
+          pointerEvents: "none",
         }}>
           <HeroGraph />
         </div>
 
         {/* Left text */}
-        <div style={{ maxWidth: 580, position: "relative", zIndex: 1 }}>
+        <div style={{ maxWidth: 580, width: "100%", position: "relative", zIndex: 1 }}>
           <div style={{
             color: T.goldMuted, fontSize: 11, letterSpacing: "0.22em",
             textTransform: "uppercase", marginBottom: 24,
@@ -615,11 +671,11 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
 
           {/* CTAs */}
           <div style={{
-            display: "flex", gap: 14, alignItems: "center",
+            display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center",
             animation: "lp-fade-up 0.6s ease 0.4s both",
           }}>
             <button className="lp-btn-primary" onClick={() => onGetStarted("free")} style={{
-              padding: "15px 34px",
+              padding: "15px 34px", minHeight: 44,
               background: "rgba(200,169,110,0.14)",
               border: `1px solid rgba(200,169,110,0.45)`,
               borderRadius: 3,
@@ -631,7 +687,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
               Begin your record — free
             </button>
             <button className="lp-btn-ghost" onClick={() => section("how-it-works")} style={{
-              padding: "15px 24px",
+              padding: "15px 24px", minHeight: 44,
               background: "none",
               border: `1px solid ${T.border}`,
               borderRadius: 3,
@@ -655,13 +711,13 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
 
       {/* ── Problem statement ──────────────────────────────────────────────── */}
       <section style={{
-        padding: "100px 48px",
+        padding: "clamp(56px, 10vw, 100px) clamp(20px, 6vw, 48px)",
         borderTop: `1px solid ${T.border}`,
         maxWidth: 960, margin: "0 auto",
       }}>
         <FadeIn>
           <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr",
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
             gap: 64, alignItems: "center",
           }}>
             <div>
@@ -720,7 +776,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
       </section>
 
       {/* ── Features ───────────────────────────────────────────────────────── */}
-      <section id="features" style={{ padding: "100px 48px", borderTop: `1px solid ${T.border}` }}>
+      <section id="features" style={{ padding: "clamp(56px, 10vw, 100px) clamp(20px, 6vw, 48px)", borderTop: `1px solid ${T.border}` }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <FadeIn>
             <div style={{ textAlign: "center", marginBottom: 64 }}>
@@ -736,7 +792,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
             </div>
           </FadeIn>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
             <FeatureCard
               icon="~" accent={T.gold} delay={0}
               title="Concept drift — see how your ideas change"
@@ -767,7 +823,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
 
       {/* ── How it works ───────────────────────────────────────────────────── */}
       <section id="how-it-works" style={{
-        padding: "100px 48px",
+        padding: "clamp(56px, 10vw, 100px) clamp(20px, 6vw, 48px)",
         borderTop: `1px solid ${T.border}`,
         background: "rgba(15,13,9,0.6)",
       }}>
@@ -809,13 +865,13 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
             ].map((step, i) => (
               <FadeIn key={i} delay={step.delay}>
                 <div style={{
-                  display: "grid", gridTemplateColumns: "80px 1fr",
-                  gap: 32, padding: "40px 0",
+                  display: "grid", gridTemplateColumns: isMobile ? "44px 1fr" : "80px 1fr",
+                  gap: isMobile ? 16 : 32, padding: isMobile ? "28px 0" : "40px 0",
                   borderBottom: i < 2 ? `1px solid ${T.border}` : "none",
                 }}>
                   <div style={{
                     color: "rgba(200,169,110,0.15)",
-                    fontFamily: T.serif, fontSize: 52,
+                    fontFamily: T.serif, fontSize: isMobile ? 30 : 52,
                     fontStyle: "italic", fontWeight: 300,
                     lineHeight: 1, paddingTop: 4,
                   }}>
@@ -839,14 +895,14 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
       </section>
 
       {/* ── Social proof ───────────────────────────────────────────────────── */}
-      <section style={{ padding: "100px 48px", borderTop: `1px solid ${T.border}` }}>
+      <section style={{ padding: "clamp(56px, 10vw, 100px) clamp(20px, 6vw, 48px)", borderTop: `1px solid ${T.border}` }}>
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <FadeIn>
             <div style={{ color: T.goldMuted, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", textAlign: "center", marginBottom: 48 }}>
               What people say
             </div>
           </FadeIn>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
             <Testimonial
               quote="I've kept a journal for twelve years. This is the first tool that made those years feel coherent rather than just accumulated."
               name="Maya Chen"
@@ -871,18 +927,20 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
 
       {/* ── Privacy objection ──────────────────────────────────────────────── */}
       <section style={{
-        padding: "80px 48px",
+        padding: "clamp(48px, 9vw, 80px) clamp(20px, 6vw, 48px)",
         borderTop: `1px solid ${T.border}`,
         background: "rgba(13,12,9,0.8)",
       }}>
         <div style={{ maxWidth: 760, margin: "0 auto" }}>
           <FadeIn>
             <div style={{
-              padding: "48px 48px",
+              padding: isMobile ? "32px 24px" : "48px 48px",
               background: T.surface,
               border: `1px solid ${T.border}`,
               borderRadius: 4,
-              display: "grid", gridTemplateColumns: "1fr 2fr", gap: 48,
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "1fr 2fr",
+              gap: isMobile ? 24 : 48,
               alignItems: "center",
             }}>
               <div>
@@ -920,7 +978,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
       </section>
 
       {/* ── Pricing ────────────────────────────────────────────────────────── */}
-      <section id="pricing" style={{ padding: "100px 48px", borderTop: `1px solid ${T.border}` }}>
+      <section id="pricing" style={{ padding: "clamp(56px, 10vw, 100px) clamp(20px, 6vw, 48px)", borderTop: `1px solid ${T.border}` }}>
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <FadeIn>
             <div style={{ textAlign: "center", marginBottom: 64 }}>
@@ -936,7 +994,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
             </div>
           </FadeIn>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, alignItems: "start" }}>
             <PricingCard
               tier="Free"
               price="$0"
@@ -990,7 +1048,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
 
       {/* ── Final CTA ──────────────────────────────────────────────────────── */}
       <section style={{
-        padding: "120px 48px",
+        padding: "clamp(72px, 14vw, 120px) clamp(20px, 6vw, 48px)",
         borderTop: `1px solid ${T.border}`,
         textAlign: "center",
         position: "relative", overflow: "hidden",
@@ -1038,7 +1096,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
 
       {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <footer style={{
-        padding: "36px 48px",
+        padding: "20px clamp(20px, 6vw, 48px)",
         borderTop: `1px solid ${T.border}`,
         display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>

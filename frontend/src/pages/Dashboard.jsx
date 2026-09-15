@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { authFetch } from "../auth/Auth";
 import { DashboardSkeleton, EmptyState, ErrorMessage } from "../components/ErrorBoundary";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -126,6 +127,7 @@ function DriftPill({ label, stability }) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function Dashboard({ onNavigate, user }) {
   injectStyles();
+  const isMobile = useIsMobile();
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -159,7 +161,7 @@ export default function Dashboard({ onNavigate, user }) {
 
   return (
     <div style={{
-      padding: "32px 40px",
+      padding: isMobile ? "20px 16px" : "32px 40px",
       fontFamily: "'EB Garamond', Georgia, serif",
       color: C.text,
       maxWidth: 1100,
@@ -188,7 +190,7 @@ export default function Dashboard({ onNavigate, user }) {
       </div>
 
       {/* Stats row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 32 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14, marginBottom: 32 }}>
         <StatCard label="Entries"        value={d.stats.entries}      sub="total written"       icon="✦" delay={0}   />
         <StatCard label="Concepts"       value={d.stats.concepts}     sub="mapped in your graph" icon="◎" delay={60}  />
         <StatCard label="Contradictions" value={d.stats.contradictions} sub={`${d.stats.resolved} resolved`} icon="⟷" delay={120} />
@@ -196,7 +198,7 @@ export default function Dashboard({ onNavigate, user }) {
       </div>
 
       {/* Main grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 380px", gap: 20 }}>
 
         {/* Left column */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>

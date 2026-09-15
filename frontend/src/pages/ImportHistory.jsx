@@ -186,12 +186,13 @@ function HistoryRow({ imp, onDelete }) {
   return (
     <div style={{
       display: "grid", gridTemplateColumns: "1fr 80px 60px 60px 80px 36px",
+      minWidth: 420,
       gap: 12, alignItems: "center",
       padding: "12px 16px", borderBottom: `1px solid ${C.border}`,
       fontSize: 12,
     }}>
-      <div>
-        <div style={{ color: C.text }}>{imp.filename || "Unknown file"}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{imp.filename || "Unknown file"}</div>
         {imp.date_from && (
           <div style={{ color: C.textMuted, fontSize: 10, marginTop: 2 }}>
             {imp.date_from} – {imp.date_to || "present"}
@@ -395,10 +396,11 @@ export default function ImportHistory({ user, onNavigate }) {
             color: C.textMuted, fontSize: 13, fontStyle: "italic",
           }}>No imports yet.</div>
         ) : (
-          <div style={{ border: `1px solid ${C.border}`, borderRadius: 4, overflow: "hidden" }}>
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 4, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             {/* Table header */}
             <div style={{
               display: "grid", gridTemplateColumns: "1fr 80px 60px 60px 80px 36px",
+              minWidth: 420,
               gap: 12, padding: "8px 16px",
               background: "rgba(200,169,110,0.06)",
               borderBottom: `1px solid ${C.border}`,

@@ -67,7 +67,7 @@ export default function Billing({ user, onNavigate }) {
   const currentPlan = status?.plan || "free";
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, padding: "40px 24px", fontFamily: "'EB Garamond', Georgia, serif" }}>
+    <div style={{ minHeight: "100dvh", background: C.bg, padding: "clamp(24px,6vw,40px) clamp(14px,4vw,24px)", fontFamily: "'EB Garamond', Georgia, serif" }}>
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <div style={{ color: C.goldMuted, fontSize: 11, letterSpacing: "0.14em", marginBottom: 12 }}>PRICING</div>
@@ -90,7 +90,7 @@ export default function Billing({ user, onNavigate }) {
           )}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
           {PLANS.map(plan => {
             const isCurrent = currentPlan === plan.key;
             const isPopular = plan.popular;

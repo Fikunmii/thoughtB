@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { authFetch } from "../auth/Auth";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -34,6 +35,8 @@ function injectStyles() {
 
 export default function ChatPage({ user, onNavigate }) {
   injectStyles();
+  const isMobile = useIsMobile();
+  const [mobileShowList, setMobileShowList] = useState(true);
 
   const [sessions, setSessions] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -69,6 +72,7 @@ export default function ChatPage({ user, onNavigate }) {
   async function openSession(id) {
     setActiveId(id);
     setError("");
+    setMobileShowList(false);
     const r = await authFetch(`${API}/chat/sessions/${id}/messages`);
     setMessages(r.ok ? await r.json() : []);
   }
@@ -84,6 +88,7 @@ export default function ChatPage({ user, onNavigate }) {
     setSessions((prev) => [s, ...prev]);
     setActiveId(s.id);
     setMessages([]);
+    setMobileShowList(false);
   }
 
   async function removeSession(id, e) {
@@ -159,8 +164,9 @@ export default function ChatPage({ user, onNavigate }) {
   return (
     <div style={{ display: "flex", height: "100%", fontFamily: "'EB Garamond', Georgia, serif" }}>
       {/* ── Session list ─────────────────────────────────────────────────── */}
+      {(!isMobile || mobileShowList) && (
       <aside style={{
-        width: 240, flexShrink: 0, height: "100%", overflowY: "auto",
+        width: isMobile ? "100%" : 240, flexShrink: 0, height: "100%", overflowY: "auto",
         borderRight: `1px solid ${C.border}`, background: C.surface,
       }}>
         <div style={{ padding: 14 }}>
@@ -203,9 +209,20 @@ export default function ChatPage({ user, onNavigate }) {
           </div>
         )}
       </aside>
+      )}
 
       {/* ── Conversation ─────────────────────────────────────────────────── */}
+      {(!isMobile || !mobileShowList) && (
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        {isMobile && (
+          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${C.border}` }}>
+            <button onClick={() => setMobileShowList(true)} style={{
+              background: "none", border: `1px solid ${C.border}`, borderRadius: 3,
+              color: C.gold, fontFamily: "inherit", fontSize: 12,
+              cursor: "pointer", padding: "8px 14px", minHeight: 44,
+            }}>← Conversations</button>
+          </div>
+        )}
         {quota?.remaining != null && (
           <div style={{
             padding: "8px 24px", borderBottom: `1px solid ${C.border}`,
@@ -289,6 +306,7 @@ export default function ChatPage({ user, onNavigate }) {
           }}>Send</button>
         </form>
       </main>
+      )}
     </div>
   );
 }

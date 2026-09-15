@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Auth, { AuthStorage, authFetch } from "./auth/Auth";
 import { ErrorBoundary, ConnectionBanner } from "./components/ErrorBoundary";
+import { useIsMobile } from "./hooks/useIsMobile";
 
 // ── All views ──────────────────────────────────────────────────────────────────
 import Dashboard            from "./pages/Dashboard";
@@ -94,6 +95,11 @@ export default function App() {
   const [connected,   setConnected]   = useState(true);
   const [stats,       setStats]       = useState({ entries: 0, concepts: 0, contradictions: 0 });
   const [badgeCounts, setBadgeCounts] = useState({ contradictions: 0 });
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Close the mobile drawer automatically if the viewport grows back to desktop
+  useEffect(() => { if (!isMobile) setDrawerOpen(false); }, [isMobile]);
 
   // ── Health check ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -133,7 +139,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
-  const navigate = useCallback((viewId) => setActiveView(viewId), []);
+  const navigate = useCallback((viewId) => { setActiveView(viewId); setDrawerOpen(false); }, []);
 
   function handleAuthenticated(u) { setUser(u); setAuthed(true); }
   function handleLogout() { AuthStorage.clear(); setAuthed(false); setUser(null); }
@@ -143,30 +149,47 @@ export default function App() {
   }
 
   const currentNav = NAV.find(n => n.id === activeView);
+  // On mobile the sidebar becomes a full off-canvas drawer instead of the
+  // desktop collapse-to-icons rail, so it's always "expanded" while open.
+  const sidebarCollapsed = isMobile ? false : collapsed;
 
   return (
     <div style={{
-      display: "flex", height: "100vh", width: "100vw",
+      display: "flex", height: "100dvh", width: "100vw",
       background: "#0f0e0b", overflow: "hidden",
       fontFamily: "'EB Garamond', Georgia, serif", color: "#e8dcc8",
     }}>
-      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
+      {/* ── Mobile drawer backdrop ───────────────────────────────────────────── */}
+      {isMobile && drawerOpen && (
+        <div onClick={() => setDrawerOpen(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 190,
+        }} />
+      )}
+
+      {/* ── Sidebar (static rail on desktop, off-canvas drawer on mobile) ──── */}
       <div style={{
-        width: collapsed ? 56 : 220, flexShrink: 0, height: "100vh",
+        width: sidebarCollapsed ? 56 : 220, flexShrink: 0, height: "100dvh",
         background: "rgba(12,11,9,0.98)",
         borderRight: "1px solid rgba(180,140,80,0.18)",
         display: "flex", flexDirection: "column",
-        transition: "width 0.25s ease", overflow: "hidden",
+        transition: isMobile ? "left 0.25s ease" : "width 0.25s ease",
+        overflow: "hidden",
+        ...(isMobile ? {
+          position: "fixed", top: 0, left: drawerOpen ? 0 : -260, zIndex: 200,
+          width: 240,
+          boxShadow: drawerOpen ? "12px 0 40px rgba(0,0,0,0.55)" : "none",
+          paddingTop: "env(safe-area-inset-top, 0px)",
+        } : null),
       }}>
         {/* Logo */}
         <div style={{
-          padding: collapsed ? "18px 0" : "20px 18px",
+          padding: sidebarCollapsed ? "18px 0" : "20px 18px",
           borderBottom: "1px solid rgba(180,140,80,0.15)",
           display: "flex", alignItems: "center",
-          justifyContent: collapsed ? "center" : "space-between",
+          justifyContent: sidebarCollapsed ? "center" : "space-between",
           flexShrink: 0,
         }}>
-          {!collapsed && (
+          {!sidebarCollapsed && (
             <div>
               <div style={{ color: "#c8a96e", fontSize: 13, fontStyle: "italic", letterSpacing: "0.06em" }}>
                 Thought Biography
@@ -176,22 +199,26 @@ export default function App() {
               </div>
             </div>
           )}
-          <button onClick={() => setCollapsed(c => !c)} title="[ to toggle" style={{
-            background: "none", border: "none",
-            color: "rgba(200,169,110,0.4)", fontSize: 14,
-            cursor: "pointer", padding: "4px 6px", borderRadius: 2,
-          }}>
-            {collapsed ? "▶" : "◀"}
+          <button
+            onClick={() => isMobile ? setDrawerOpen(false) : setCollapsed(c => !c)}
+            title={isMobile ? "Close menu" : "[ to toggle"}
+            style={{
+              background: "none", border: "none",
+              color: "rgba(200,169,110,0.4)", fontSize: isMobile ? 20 : 14,
+              cursor: "pointer", padding: "4px 6px", borderRadius: 2,
+              minWidth: isMobile ? 44 : "auto", minHeight: isMobile ? 44 : "auto",
+            }}>
+            {isMobile ? "×" : (collapsed ? "▶" : "◀")}
           </button>
         </div>
 
         {/* Nav groups */}
-        <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none", msOverflowStyle: "none", padding: collapsed ? "8px 0" : "8px 0" }}>
+        <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none", msOverflowStyle: "none", padding: sidebarCollapsed ? "8px 0" : "8px 0" }}>
           {GROUPS.map(group => {
             const items = NAV.filter(n => n.group === group.id);
             return (
               <div key={group.id} style={{ marginBottom: 4 }}>
-                {!collapsed && (
+                {!sidebarCollapsed && (
                   <div style={{
                     padding: "10px 18px 4px",
                     color: "rgba(200,169,110,0.3)",
@@ -202,23 +229,24 @@ export default function App() {
                   const active = activeView === item.id;
                   const badge  = badgeCounts[item.id];
                   return (
-                    <button key={item.id} onClick={() => setActiveView(item.id)}
-                      title={collapsed ? `${item.label}${item.shortcut ? ` (${item.shortcut})` : ""}` : ""}
+                    <button key={item.id} onClick={() => navigate(item.id)}
+                      title={sidebarCollapsed ? `${item.label}${item.shortcut ? ` (${item.shortcut})` : ""}` : ""}
                       style={{
                         display: "flex", alignItems: "center", width: "100%",
-                        padding: collapsed ? "10px 0" : "9px 18px",
-                        justifyContent: collapsed ? "center" : "flex-start",
+                        padding: sidebarCollapsed ? "10px 0" : "9px 18px",
+                        minHeight: 44,
+                        justifyContent: sidebarCollapsed ? "center" : "flex-start",
                         gap: 10,
                         background: active ? "rgba(180,140,80,0.12)" : "none",
                         border: "none",
                         borderLeft: active ? "2px solid #c8a96e" : "2px solid transparent",
                         color: active ? "#c8a96e" : "rgba(200,169,110,0.5)",
-                        fontSize: collapsed ? 15 : 13,
+                        fontSize: sidebarCollapsed ? 15 : 13,
                         cursor: "pointer", fontFamily: "inherit",
                         transition: "all 0.15s", position: "relative",
                       }}>
                       <span style={{ fontSize: 14, lineHeight: 1 }}>{item.icon}</span>
-                      {!collapsed && (
+                      {!sidebarCollapsed && (
                         <>
                           <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
                           {item.shortcut && (
@@ -248,8 +276,8 @@ export default function App() {
         </div>
 
         {/* Bottom: stats + connection + logout */}
-        <div style={{ borderTop: "1px solid rgba(180,140,80,0.15)", flexShrink: 0 }}>
-          {!collapsed && (
+        <div style={{ borderTop: "1px solid rgba(180,140,80,0.15)", flexShrink: 0, paddingBottom: isMobile ? "env(safe-area-inset-bottom, 0px)" : 0 }}>
+          {!sidebarCollapsed && (
             <div style={{ padding: "12px 18px" }}>
               <div style={{ display: "flex", gap: 16, marginBottom: 10 }}>
                 {[["entries", stats.entries], ["concepts", stats.concepts]].map(([k, v]) => (
@@ -270,56 +298,76 @@ export default function App() {
               </div>
             </div>
           )}
-          <button onClick={handleLogout} title={collapsed ? "Sign out" : ""} style={{
-            width: "100%", padding: collapsed ? "12px 0" : "10px 18px",
+          <button onClick={handleLogout} title={sidebarCollapsed ? "Sign out" : ""} style={{
+            width: "100%", padding: sidebarCollapsed ? "12px 0" : "10px 18px",
+            minHeight: 44,
             background: "none", border: "none", borderTop: "1px solid rgba(180,140,80,0.1)",
             color: "rgba(200,169,110,0.3)",
-            fontSize: collapsed ? 14 : 11, letterSpacing: collapsed ? 0 : "0.1em",
-            textAlign: collapsed ? "center" : "left",
+            fontSize: sidebarCollapsed ? 14 : 11, letterSpacing: sidebarCollapsed ? 0 : "0.1em",
+            textAlign: sidebarCollapsed ? "center" : "left",
             cursor: "pointer", fontFamily: "inherit",
           }}>
-            {collapsed ? "⊗" : "Sign out"}
+            {sidebarCollapsed ? "⊗" : "Sign out"}
           </button>
         </div>
       </div>
 
       {/* ── Main content area ─────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* Topbar */}
         <div style={{
-          height: 52, flexShrink: 0, padding: "0 28px",
+          height: isMobile ? "calc(52px + env(safe-area-inset-top, 0px))" : 52,
+          flexShrink: 0, padding: isMobile ? "0 10px" : "0 28px",
+          paddingTop: isMobile ? "env(safe-area-inset-top, 0px)" : 0,
           borderBottom: "1px solid rgba(180,140,80,0.15)",
           background: "rgba(12,11,9,0.7)",
           display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 8, minWidth: 0,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ color: "#c8a96e", fontSize: 16 }}>{currentNav?.icon}</span>
-            <span style={{ color: "#c8a96e", fontSize: 15, fontStyle: "italic" }}>{currentNav?.label}</span>
+          {isMobile && (
+            <button onClick={() => setDrawerOpen(true)} aria-label="Open menu" style={{
+              background: "none", border: "1px solid rgba(180,140,80,0.25)", borderRadius: 3,
+              color: "#c8a96e", fontSize: 16, cursor: "pointer",
+              width: 40, height: 40, flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>☰</button>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, overflow: "hidden" }}>
+            <span style={{ color: "#c8a96e", fontSize: 16, flexShrink: 0 }}>{currentNav?.icon}</span>
+            <span style={{
+              color: "#c8a96e", fontSize: 15, fontStyle: "italic",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>{currentNav?.label}</span>
           </div>
-          <div style={{ display: "flex", gap: 16 }}>
-            {NAV.filter(n => n.group === "main").map(n => (
-              <button key={n.id} onClick={() => setActiveView(n.id)} style={{
-                background: "none", border: "none",
-                color: activeView === n.id ? "#c8a96e" : "rgba(200,169,110,0.3)",
-                fontSize: 12, cursor: "pointer",
-                fontFamily: "inherit", letterSpacing: "0.08em",
-                borderBottom: activeView === n.id ? "1px solid #c8a96e" : "1px solid transparent",
-                padding: "2px 0",
-              }}>{n.label}</button>
-            ))}
-          </div>
+          {/* Quick-nav pills: only room for these on wider screens — the
+              mobile drawer covers the same items via the hamburger menu. */}
+          {!isMobile && (
+            <div style={{ display: "flex", gap: 16 }}>
+              {NAV.filter(n => n.group === "main").map(n => (
+                <button key={n.id} onClick={() => setActiveView(n.id)} style={{
+                  background: "none", border: "none",
+                  color: activeView === n.id ? "#c8a96e" : "rgba(200,169,110,0.3)",
+                  fontSize: 12, cursor: "pointer",
+                  fontFamily: "inherit", letterSpacing: "0.08em",
+                  borderBottom: activeView === n.id ? "1px solid #c8a96e" : "1px solid transparent",
+                  padding: "2px 0",
+                }}>{n.label}</button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* View content */}
-        <div style={{ flex: 1, overflow: "auto", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+        <div style={{ flex: 1, overflow: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>
           <ErrorBoundary key={activeView}>
             {subBanner && (
               <div style={{
-                position: "fixed", top: 0, left: 0, right: 0, zIndex: 999,
+                position: "fixed", top: "env(safe-area-inset-top, 0px)", left: 0, right: 0, zIndex: 999,
                 background: "rgba(200,169,110,0.15)", borderBottom: "1px solid rgba(200,169,110,0.3)",
-                padding: "12px 24px", textAlign: "center",
+                padding: "12px 16px", textAlign: "center",
                 fontFamily: "'EB Garamond', Georgia, serif", color: "#c8a96e", fontSize: 14,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 16,
+                flexWrap: "wrap",
               }}>
                 ✦ Welcome to {subBanner.charAt(0).toUpperCase() + subBanner.slice(1)}! Your 14-day free trial has started.
                 <button onClick={() => setSubBanner(null)} style={{ background: "transparent", border: "none", color: "#c8a96e", cursor: "pointer", fontSize: 16 }}>×</button>
