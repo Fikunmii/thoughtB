@@ -1,11 +1,13 @@
 """
 stripe_api.py — Stripe subscription management for Thought Biography
 Plans:
-  Personal     $15.99/mo  price_1TnbLAKhwAvA6zUqJI8YJYZI
-  Professional $49.99/mo  price_1TnbMDKhwAvA6zUqkE0QkPxw
+  Personal     $15.99/mo  price_1TnbLAKhwAvA6zUqJI8YJYZI  (14-day trial, card required)
+  Professional $49.99/mo  price_1TnbMDKhwAvA6zUqkE0QkPxw  (14-day trial, card required)
 
-No Stripe trial period: the 30 free entries on the free tier ARE the trial.
-Checkout always charges immediately — no stacked 14-day trial on top.
+Trial is handled natively by Stripe (subscription_data.trial_period_days) —
+users pick a plan and enter payment details at signup; Stripe starts the clock
+and auto-charges when the trial ends. The Free plan has no Stripe subscription
+at all — it's a standalone 30-entry cap for people who skip checkout.
 """
 import os, stripe
 from fastapi import APIRouter, Depends, Request, HTTPException
@@ -20,11 +22,13 @@ PLANS = {
         "price_id":   "price_1TnbLAKhwAvA6zUqJI8YJYZI",
         "name":       "Personal",
         "amount":     1599,
+        "trial_days": 14,
     },
     "professional": {
         "price_id":   "price_1TnbMDKhwAvA6zUqkE0QkPxw",
         "name":       "Professional",
         "amount":     4999,
+        "trial_days": 14,
     },
 }
 
@@ -77,13 +81,19 @@ def get_user_plan(uid: str) -> dict:
     with driver.session() as sess:
         r = sess.run("""
             MATCH (u:User {id:$uid})
+            OPTIONAL MATCH (e:Entry {user_id:$uid})
+            WITH u, count(e) AS entry_count
             RETURN coalesce(u.plan,'free') AS plan,
                    coalesce(u.subscription_status,'active') AS status,
-                   u.subscription_id AS sub_id
+                   u.subscription_id AS sub_id,
+                   entry_count
         """, uid=uid).single()
         if not r:
-            return {"plan": "free", "status": "active", "sub_id": None}
-        return {"plan": r["plan"], "status": r["status"], "sub_id": r["sub_id"]}
+            return {"plan": "free", "status": "active", "sub_id": None, "entry_count": 0}
+        return {
+            "plan": r["plan"], "status": r["status"], "sub_id": r["sub_id"],
+            "entry_count": r["entry_count"],
+        }
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -97,7 +107,8 @@ def subscription_status(current_user: dict = Depends(get_current_user)):
         "plan":   plan,
         "status": info["status"],
         "limits": limits,
-        "plans":  {k: {"name": v["name"], "amount": v["amount"]} for k, v in PLANS.items()},
+        "entries_used": info["entry_count"] if plan == "free" else None,
+        "plans":  {k: {"name": v["name"], "amount": v["amount"], "trial_days": v["trial_days"]} for k, v in PLANS.items()},
     }
 
 
@@ -115,6 +126,7 @@ def create_checkout(body: dict, current_user: dict = Depends(get_current_user)):
         customer=customer_id,
         mode="subscription",
         line_items=[{"price": plan["price_id"], "quantity": 1}],
+        subscription_data={"trial_period_days": plan["trial_days"]},
         success_url=f"{FRONTEND_URL}?subscribed=true&plan={plan_key}",
         cancel_url=f"{FRONTEND_URL}?subscribed=false",
         metadata={"user_id": current_user["user_id"], "plan": plan_key},
@@ -156,7 +168,15 @@ async def stripe_webhook(request: Request):
         plan_key = data.get("metadata", {}).get("plan", "personal")
         sub_id   = data.get("subscription")
         if uid:
-            set_user_plan(uid, plan_key, sub_id, "active")
+            # Pull the real status (usually "trialing" since checkout sets a 14-day trial)
+            # instead of hardcoding "active" — matters for showing an accurate trial state.
+            sub_status = "active"
+            if sub_id:
+                try:
+                    sub_status = s.Subscription.retrieve(sub_id).status
+                except Exception:
+                    pass
+            set_user_plan(uid, plan_key, sub_id, sub_status)
 
     elif et == "customer.subscription.updated":
         sub_id = data["id"]

@@ -240,14 +240,15 @@ def create_entry(
     Create a new entry and process it through the AI pipeline.
     Returns the entry ID plus the extracted graph data.
     """
-    # Free tier: max 30 entries
+    # Free tier: max 30 entries. Personal/Professional carry no cap here —
+    # their 14-day trial is tracked by Stripe (they're not on plan == "free").
     _uid = current_user["user_id"]
     with driver.session() as _s:
         _plan_r = _s.run("MATCH (u:User {id:$uid}) RETURN coalesce(u.plan,'free') AS plan", uid=_uid).single()
         if (_plan_r["plan"] if _plan_r else "free") == "free":
             _cnt = _s.run("MATCH (e:Entry {user_id:$uid}) RETURN count(e) AS n", uid=_uid).single()
             if _cnt and _cnt["n"] >= 30:
-                raise HTTPException(status_code=402, detail="Free tier limit reached (30 entries). Upgrade to Personal for unlimited entries.")
+                raise HTTPException(status_code=402, detail="Free tier limit reached (30 entries). Upgrade to Personal or Professional for unlimited entries.")
     uid        = current_user["user_id"]
     entry_id   = str(uuid.uuid4())
     created_at = req.date or datetime.utcnow().isoformat()

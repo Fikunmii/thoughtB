@@ -11,19 +11,20 @@ const C = {
 const PLANS = [
   {
     key: "free", name: "Free", price: "$0", period: "forever",
-    trial: "Your 30-entry trial",
     features: ["30 journal entries", "Core concept graph", "Basic contradiction detection", "5 AI queries per day"],
     cta: null,
   },
   {
     key: "personal", name: "Personal", price: "$15.99", period: "per month",
+    trial: "14-day free trial",
     features: ["Unlimited entries", "Full concept drift tracking", "Influence trees visualization", "Time travel playback", "AI biography generation", "Semantic search", "Full data export"],
-    cta: "Upgrade to Personal", popular: true,
+    cta: "Start 14-Day Free Trial", popular: true,
   },
   {
     key: "professional", name: "Professional", price: "$49.99", period: "per month",
+    trial: "14-day free trial",
     features: ["Everything in Personal", "Share graph with therapist or coach", "Annotation layer for shared views", "Up to 5 share links", "Priority support"],
-    cta: "Upgrade to Professional",
+    cta: "Start Free Trial",
   },
 ];
 
@@ -64,6 +65,8 @@ export default function Billing({ user, onNavigate }) {
   };
 
   const currentPlan = status?.plan || "free";
+  const entriesUsed = status?.entries_used;
+  const freeStatusLabel = typeof entriesUsed === "number" ? `${entriesUsed}/30 entries used` : null;
 
   return (
     <div style={{ minHeight: "100dvh", background: C.bg, padding: "clamp(24px,6vw,40px) clamp(14px,4vw,24px)", fontFamily: "'EB Garamond', Georgia, serif" }}>
@@ -112,9 +115,12 @@ export default function Billing({ user, onNavigate }) {
                 <div style={{ color: C.gold, fontSize: 36, fontStyle: "italic", marginBottom: 4 }}>
                   {plan.price}
                 </div>
-                <div style={{ color: C.textMuted, fontSize: 12, marginBottom: plan.trial ? 4 : 24 }}>
+                <div style={{ color: C.textMuted, fontSize: 12, marginBottom: (plan.trial || plan.key === "free") ? 4 : 24 }}>
                   {plan.period}
                 </div>
+                {plan.key === "free" && freeStatusLabel && (
+                  <div style={{ color: C.goldMuted, fontSize: 11, marginBottom: 20 }}>{freeStatusLabel}</div>
+                )}
                 {plan.trial && (
                   <div style={{ color: C.goldMuted, fontSize: 11, marginBottom: 20 }}>{plan.trial}</div>
                 )}

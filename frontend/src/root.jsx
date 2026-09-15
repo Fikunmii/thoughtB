@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import Auth, { AuthStorage }  from "./auth/Auth";
+import PlanSelect              from "./auth/PlanSelect";
 import LandingPage             from "./marketing/LandingPage";
 import Onboarding              from "./onboarding/Onboarding";
 
@@ -13,6 +14,7 @@ import Onboarding              from "./onboarding/Onboarding";
 //  State machine:
 //    "landing"     — visitor hasn't authenticated
 //    "auth"        — visitor clicked CTA, showing login/register
+//    "plan"        — just registered (no plan picked yet), choosing Free/Personal/Professional
 //    "onboarding"  — just registered, first-time experience
 //    "app"         — authenticated + onboarded
 //
@@ -49,10 +51,11 @@ export default function Root() {
     setScene("auth");
   }
 
-  function handleAuthenticated(u) {
+  function handleAuthenticated(u, authMode) {
     setUser(u);
     if (pendingPlan) {
-      // Redirect to Stripe checkout for the selected plan
+      // They already picked a plan from a landing-page pricing card —
+      // skip the picker and go straight to Stripe checkout for it.
       const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
       const token = localStorage.getItem("tb_token") || sessionStorage.getItem("tb_token");
       fetch(`${API}/subscription/checkout`, {
@@ -70,6 +73,16 @@ export default function Root() {
       setPendingPlan(null);
       return;
     }
+    if (authMode === "register") {
+      // Brand new account, no plan picked yet — ask before dropping them into the app.
+      setScene("plan");
+      return;
+    }
+    const alreadyOnboarded = localStorage.getItem("tb_onboarded");
+    setScene(alreadyOnboarded ? "app" : "onboarding");
+  }
+
+  function handlePlanFree() {
     const alreadyOnboarded = localStorage.getItem("tb_onboarded");
     setScene(alreadyOnboarded ? "app" : "onboarding");
   }
@@ -103,6 +116,17 @@ export default function Root() {
         onAuthenticated={handleAuthenticated}
         // Pass mode hint so Auth shows register vs login
         // (Auth.jsx reads initialMode prop if you add it)
+      />
+    );
+  }
+
+  if (scene === "plan") {
+    return (
+      <PlanSelect
+        onFree={handlePlanFree}
+        // onPaidPlanChosen is a no-op here — window.location.href redirect
+        // to Stripe happens inside PlanSelect itself before this returns.
+        onPaidPlanChosen={() => {}}
       />
     );
   }

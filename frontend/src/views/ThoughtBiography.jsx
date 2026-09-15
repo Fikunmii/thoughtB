@@ -868,7 +868,7 @@ export default function ThoughtBiography({ user, onNavigate }) {
                 opacity: upgrading === "personal" ? 0.6 : 1,
               }}
             >
-              {upgrading === "personal" ? "Starting checkout…" : "Upgrade to Personal — $15.99/mo"}
+              {upgrading === "personal" ? "Starting checkout…" : "Start 14-Day Free Trial — Personal ($15.99/mo)"}
             </button>
             <button
               className="tb-btn"

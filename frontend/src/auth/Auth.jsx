@@ -97,7 +97,7 @@ export default function Auth({ onAuthenticated }) {
 }
 
       AuthStorage.save({ access_token: data.access_token, refresh_token: data.refresh_token }, data.user);
-      onAuthenticated(data.user);
+      onAuthenticated(data.user, mode);
     } catch {
       setError("Could not reach the server. Is the backend running?");
     } finally {

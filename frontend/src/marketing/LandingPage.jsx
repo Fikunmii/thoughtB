@@ -1024,7 +1024,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
                 "Semantic search",
                 "Full data export",
               ]}
-              cta="Upgrade to Personal"
+              cta="Start 14-day free trial"
               onCta={() => onGetStarted("personal")}
             />
             <PricingCard
@@ -1039,7 +1039,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
                 "Up to 5 share links",
                 "Priority support",
               ]}
-              cta="Upgrade to Professional"
+              cta="Start free trial"
               onCta={() => onGetStarted("professional")}
             />
           </div>
