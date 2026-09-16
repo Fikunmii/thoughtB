@@ -486,7 +486,12 @@ export default function ThoughtBiography({ user, onNavigate }) {
       });
       if (res.status === 402) {
         const d = await res.json().catch(() => ({}));
-        setPaywall({ message: d.detail || "Free tier limit reached (30 entries). Upgrade for unlimited entries." });
+        const detail = d.detail;
+        const isObj = detail && typeof detail === "object";
+        setPaywall({
+          message: (isObj ? detail.message : detail) || "Free tier limit reached (30 entries). Upgrade for unlimited entries.",
+          reason: isObj ? detail.reason : "limit_reached",
+        });
         return;
       }
       if (!res.ok) throw new Error("Save failed");
@@ -521,6 +526,22 @@ export default function ThoughtBiography({ user, onNavigate }) {
     } catch (e) {
       setUpgrading(null);
       setPaywall(p => ({ ...(p || {}), message: "Couldn't start checkout — try again from Billing." }));
+    }
+  }
+
+  async function handleManageBilling() {
+    setUpgrading("manage");
+    try {
+      const res = await authFetch(`${API}/subscription/portal`, { method: "POST" });
+      const { portal_url } = await res.json();
+      if (portal_url) {
+        window.location.href = portal_url;
+        return; // navigating away
+      }
+      throw new Error("No portal URL returned");
+    } catch (e) {
+      setUpgrading(null);
+      setPaywall(p => ({ ...(p || {}), message: "Couldn't open billing portal — try again from Billing." }));
     }
   }
 
@@ -852,24 +873,40 @@ export default function ThoughtBiography({ user, onNavigate }) {
             borderRadius: 10, padding: "28px 26px", animation: "tb-fade 0.25s ease",
           }}>
             <div style={{ color: C.goldMuted, fontSize: 11, letterSpacing: "0.12em", marginBottom: 10 }}>
-              FREE TIER LIMIT REACHED
+              {paywall.reason === "payment_failed" ? "PAYMENT ISSUE" : "FREE TIER LIMIT REACHED"}
             </div>
             <div style={{ color: C.text, fontSize: 15, lineHeight: 1.5, marginBottom: 22 }}>
               {paywall.message}
             </div>
-            <button
-              className="tb-save"
-              disabled={upgrading === "personal"}
-              onClick={() => handleUpgrade("personal")}
-              style={{
-                width: "100%", padding: "12px 0", marginBottom: 10,
-                background: "rgba(200,169,110,0.12)", border: `1px solid ${C.gold}`,
-                borderRadius: 6, color: C.gold, fontSize: 14, cursor: "pointer",
-                opacity: upgrading === "personal" ? 0.6 : 1,
-              }}
-            >
-              {upgrading === "personal" ? "Starting checkout…" : "Start 14-Day Free Trial — Personal ($15.99/mo)"}
-            </button>
+            {paywall.reason === "payment_failed" ? (
+              <button
+                className="tb-save"
+                disabled={upgrading === "manage"}
+                onClick={handleManageBilling}
+                style={{
+                  width: "100%", padding: "12px 0", marginBottom: 10,
+                  background: "rgba(200,169,110,0.12)", border: `1px solid ${C.gold}`,
+                  borderRadius: 6, color: C.gold, fontSize: 14, cursor: "pointer",
+                  opacity: upgrading === "manage" ? 0.6 : 1,
+                }}
+              >
+                {upgrading === "manage" ? "Opening billing portal…" : "Update Payment Method"}
+              </button>
+            ) : (
+              <button
+                className="tb-save"
+                disabled={upgrading === "personal"}
+                onClick={() => handleUpgrade("personal")}
+                style={{
+                  width: "100%", padding: "12px 0", marginBottom: 10,
+                  background: "rgba(200,169,110,0.12)", border: `1px solid ${C.gold}`,
+                  borderRadius: 6, color: C.gold, fontSize: 14, cursor: "pointer",
+                  opacity: upgrading === "personal" ? 0.6 : 1,
+                }}
+              >
+                {upgrading === "personal" ? "Starting checkout…" : "Start 14-Day Free Trial — Personal ($15.99/mo)"}
+              </button>
+            )}
             <button
               className="tb-btn"
               onClick={() => { setPaywall(null); onNavigate?.("billing"); }}

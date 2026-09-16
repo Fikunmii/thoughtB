@@ -65,12 +65,32 @@ export default function Billing({ user, onNavigate }) {
   };
 
   const currentPlan = status?.plan || "free";
+  const subStatus = status?.status;
+  const paymentFailed = currentPlan !== "free" && (subStatus === "past_due" || subStatus === "unpaid");
   const entriesUsed = status?.entries_used;
   const freeStatusLabel = typeof entriesUsed === "number" ? `${entriesUsed}/30 entries used` : null;
 
   return (
     <div style={{ minHeight: "100dvh", background: C.bg, padding: "clamp(24px,6vw,40px) clamp(14px,4vw,24px)", fontFamily: "'EB Garamond', Georgia, serif" }}>
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        {paymentFailed && (
+          <div style={{
+            background: "rgba(192,57,43,0.08)", border: "1px solid rgba(192,57,43,0.35)",
+            borderRadius: 4, padding: "14px 18px", marginBottom: 28,
+            display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
+          }}>
+            <span style={{ color: "#e07070", fontSize: 13 }}>
+              Your last payment didn't go through. Update your card to avoid losing unlimited access.
+            </span>
+            <button onClick={handleManage} style={{
+              background: "transparent", border: "1px solid rgba(192,57,43,0.5)",
+              color: "#e07070", fontSize: 12, padding: "6px 14px", borderRadius: 3,
+              cursor: "pointer", fontFamily: "'EB Garamond', Georgia, serif", whiteSpace: "nowrap",
+            }}>
+              Update payment method →
+            </button>
+          </div>
+        )}
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <div style={{ color: C.goldMuted, fontSize: 11, letterSpacing: "0.14em", marginBottom: 12 }}>PRICING</div>
           <h1 style={{ color: C.text, fontSize: 36, fontStyle: "italic", fontWeight: 400, margin: 0 }}>
