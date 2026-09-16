@@ -316,10 +316,32 @@ def _free_tier_remaining(uid: str) -> int:
     return max(0, FREE_TIER_MONTHLY_LIMIT - (r["used"] if r else 0))
 
 
-def _user_plan(uid: str) -> str:
+def _user_access(uid: str) -> dict:
+    """
+    Same pattern as the /entries gate in api.py: full unlimited access requires
+    plan != free AND a healthy subscription status. A lapsed trial or failed
+    renewal (past_due/unpaid) — or a canceled sub, which the webhook already
+    resets to plan='free' — falls back to the free-tier message cap instead of
+    an unconditional block, so access resumes automatically once Stripe
+    successfully charges again and status flips back to active.
+    """
     with driver.session() as s:
-        r = s.run("MATCH (u:User {id: $uid}) RETURN coalesce(u.plan, 'free') AS plan", uid=uid).single()
-    return r["plan"] if r else "free"
+        r = s.run(
+            "MATCH (u:User {id: $uid}) "
+            "RETURN coalesce(u.plan, 'free') AS plan, coalesce(u.subscription_status, 'active') AS status",
+            uid=uid,
+        ).single()
+    plan = r["plan"] if r else "free"
+    status = r["status"] if r else "active"
+    return {
+        "plan": plan,
+        "status": status,
+        "has_full_access": plan != "free" and status in ("active", "trialing"),
+    }
+
+
+def _user_plan(uid: str) -> str:
+    return _user_access(uid)["plan"]
 
 
 # ── Route registrar ───────────────────────────────────────────────────────────
@@ -358,11 +380,14 @@ def register_chat_routes(app):
     @app.get("/chat/quota", tags=["chat"])
     def quota(current_user: dict = Depends(get_current_user)):
         uid = current_user["user_id"]
-        plan = _user_plan(uid)
+        access = _user_access(uid)
+        capped = not access["has_full_access"]
         return {
-            "plan": plan,
-            "limit": None if plan != "free" else FREE_TIER_MONTHLY_LIMIT,
-            "remaining": _free_tier_remaining(uid) if plan == "free" else None,
+            "plan": access["plan"],
+            "status": access["status"],
+            "trial_ended": access["plan"] != "free" and access["status"] in ("past_due", "unpaid"),
+            "limit": FREE_TIER_MONTHLY_LIMIT if capped else None,
+            "remaining": _free_tier_remaining(uid) if capped else None,
         }
 
     @app.post("/chat/sessions/{sid}/messages", tags=["chat"])
@@ -375,14 +400,29 @@ def register_chat_routes(app):
 
         _assert_owns_session(uid, sid)
 
-        # Free-tier gating — same pattern as the 30-entry limit in api.py
-        if _user_plan(uid) == "free":
+        # Gating — same pattern as the 30-entry limit in api.py. A lapsed trial or
+        # failed renewal falls back to the free-tier cap rather than a hard block,
+        # so chat resumes automatically once Stripe successfully charges again.
+        access = _user_access(uid)
+        if not access["has_full_access"]:
             remaining = _free_tier_remaining(uid)
             if remaining <= 0:
+                if access["plan"] != "free" and access["status"] in ("past_due", "unpaid"):
+                    raise HTTPException(
+                        status_code=402,
+                        detail={
+                            "reason": "trial_ended",
+                            "message": "Your free trial has ended and your last payment didn't go "
+                            "through. Update your card to keep chatting with your journal.",
+                        },
+                    )
                 raise HTTPException(
                     status_code=402,
-                    detail=f"Free tier includes {FREE_TIER_MONTHLY_LIMIT} chat messages "
-                    f"per month. Upgrade to Personal to keep chatting with your journal.",
+                    detail={
+                        "reason": "limit_reached",
+                        "message": f"Free tier includes {FREE_TIER_MONTHLY_LIMIT} chat messages "
+                        f"per month. Upgrade to Personal to keep chatting with your journal.",
+                    },
                 )
 
         question = body.content.strip()

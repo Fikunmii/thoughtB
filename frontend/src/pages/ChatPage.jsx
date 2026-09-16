@@ -136,7 +136,12 @@ export default function ChatPage({ user, onNavigate }) {
       if (!res.ok) {
         let detail = await res.text();
         try { detail = JSON.parse(detail).detail ?? detail; } catch { /* keep raw */ }
-        throw new Error(detail || `Request failed (${res.status})`);
+        // detail is either a plain string or {reason, message} from the 402 gates
+        const msg = (detail && typeof detail === "object") ? detail.message : detail;
+        if (detail && typeof detail === "object" && (detail.reason === "trial_ended" || detail.reason === "limit_reached")) {
+          setQuota((q) => ({ ...q, remaining: 0, trial_ended: detail.reason === "trial_ended" }));
+        }
+        throw new Error(msg || `Request failed (${res.status})`);
       }
 
       const reader = res.body.getReader();
@@ -223,19 +228,29 @@ export default function ChatPage({ user, onNavigate }) {
             }}>← Conversations</button>
           </div>
         )}
-        {quota?.remaining != null && (
+        {quota?.remaining != null && quota.remaining > 0 && (
           <div style={{
             padding: "8px 24px", borderBottom: `1px solid ${C.border}`,
-            color: quota.remaining === 0 ? "#e07070" : C.textMuted, fontSize: 12,
+            color: C.textMuted, fontSize: 12,
             display: "flex", alignItems: "center", gap: 10,
           }}>
             {quota.remaining} free chat message{quota.remaining === 1 ? "" : "s"} left this month
-            {quota.remaining === 0 && (
-              <button onClick={() => onNavigate?.("billing")} style={{
-                background: "none", border: "none", color: C.gold,
-                cursor: "pointer", fontFamily: "inherit", fontSize: 12, textDecoration: "underline",
-              }}>upgrade</button>
-            )}
+          </div>
+        )}
+
+        {quota?.remaining === 0 && (
+          <div style={{
+            padding: "8px 24px", borderBottom: `1px solid ${C.border}`,
+            color: "#e07070", fontSize: 12,
+            display: "flex", alignItems: "center", gap: 10,
+          }}>
+            {quota.trial_ended
+              ? "Your free trial has ended — subscribe to keep chatting with your journal."
+              : "You've used this month's free chat messages."}
+            <button onClick={() => onNavigate?.("billing")} style={{
+              background: "none", border: "none", color: C.gold,
+              cursor: "pointer", fontFamily: "inherit", fontSize: 12, textDecoration: "underline",
+            }}>{quota.trial_ended ? "subscribe" : "upgrade"}</button>
           </div>
         )}
 
@@ -281,30 +296,47 @@ export default function ChatPage({ user, onNavigate }) {
           <div ref={bottomRef} />
         </div>
 
-        <form className="chat-composer" onSubmit={handleSend} style={{
-          display: "flex", gap: 10, padding: "16px 28px",
-          borderTop: `1px solid ${C.border}`,
-        }}>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="Ask about your thinking…"
-            rows={2}
-            disabled={streaming}
-            style={{
-              flex: 1, resize: "none", background: "rgba(232,220,200,0.03)",
-              border: `1px solid ${C.border}`, borderRadius: 4, padding: "10px 12px",
-              color: C.text, fontFamily: "inherit", fontSize: 14, outline: "none",
-            }}
-          />
-          <button type="submit" disabled={streaming || !input.trim()} style={{
-            padding: "0 20px", background: streaming || !input.trim() ? "rgba(200,169,110,0.08)" : C.goldFaint,
-            border: `1px solid ${C.border}`, borderRadius: 4,
-            color: streaming || !input.trim() ? "rgba(200,169,110,0.3)" : C.gold,
-            fontFamily: "inherit", fontSize: 13, cursor: streaming || !input.trim() ? "default" : "pointer",
-          }}>Send</button>
-        </form>
+        {quota?.remaining === 0 ? (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 14,
+            padding: "18px 28px", borderTop: `1px solid ${C.border}`,
+          }}>
+            <span style={{ color: C.textMuted, fontSize: 13 }}>
+              {quota.trial_ended
+                ? "Chat is paused until your subscription is active again."
+                : "Chat is paused until next month, or upgrade for unlimited chat."}
+            </span>
+            <button onClick={() => onNavigate?.("billing")} style={{
+              padding: "8px 18px", background: C.goldFaint, border: `1px solid ${C.border}`,
+              borderRadius: 4, color: C.gold, fontFamily: "inherit", fontSize: 13, cursor: "pointer",
+            }}>{quota.trial_ended ? "Update payment" : "Upgrade"}</button>
+          </div>
+        ) : (
+          <form className="chat-composer" onSubmit={handleSend} style={{
+            display: "flex", gap: 10, padding: "16px 28px",
+            borderTop: `1px solid ${C.border}`,
+          }}>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              placeholder="Ask about your thinking…"
+              rows={2}
+              disabled={streaming}
+              style={{
+                flex: 1, resize: "none", background: "rgba(232,220,200,0.03)",
+                border: `1px solid ${C.border}`, borderRadius: 4, padding: "10px 12px",
+                color: C.text, fontFamily: "inherit", fontSize: 14, outline: "none",
+              }}
+            />
+            <button type="submit" disabled={streaming || !input.trim()} style={{
+              padding: "0 20px", background: streaming || !input.trim() ? "rgba(200,169,110,0.08)" : C.goldFaint,
+              border: `1px solid ${C.border}`, borderRadius: 4,
+              color: streaming || !input.trim() ? "rgba(200,169,110,0.3)" : C.gold,
+              fontFamily: "inherit", fontSize: 13, cursor: streaming || !input.trim() ? "default" : "pointer",
+            }}>Send</button>
+          </form>
+        )}
       </main>
       )}
     </div>
