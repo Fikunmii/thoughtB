@@ -239,6 +239,12 @@ def health():
     }
 
 
+@app.get("/sentry-debug", tags=["system"])
+def trigger_sentry_test_error():
+    """Temporary — hit this once to confirm Sentry is receiving events, then remove."""
+    return 1 / 0
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ENTRIES  —  POST /entries  |  GET /entries  |  GET /entries/{id}
 #             PUT /entries/{id}  |  DELETE /entries/{id}
