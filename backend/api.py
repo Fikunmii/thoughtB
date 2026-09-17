@@ -241,7 +241,9 @@ def health():
 
 @app.get("/sentry-debug", tags=["system"])
 def trigger_sentry_test_error():
-    """Temporary — hit this once to confirm Sentry is receiving events, then remove."""
+    """Temporary — hit this once to confirm Sentry is receiving events, then remove.
+    (force-rebuild marker: previous deploy of this route was skipped by Railway)
+    """
     return 1 / 0
 
 
