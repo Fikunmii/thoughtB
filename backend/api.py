@@ -134,6 +134,29 @@ async def lifespan(app: FastAPI):
     driver.close()
 
 
+# ── Sentry ────────────────────────────────────────────────────────────────────
+_sentry_dsn = os.getenv("SENTRY_DSN")
+if _sentry_dsn:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        integrations=[FastApiIntegration()],
+        traces_sample_rate=0.1,
+        environment=os.getenv("ENVIRONMENT", "production"),
+    )
+
+# ── PostHog ───────────────────────────────────────────────────────────────────
+_posthog_key = os.getenv("POSTHOG_API_KEY")
+if _posthog_key:
+    import posthog as _posthog
+
+    _posthog.api_key = _posthog_key
+    _posthog.host = os.getenv("POSTHOG_HOST", "https://us.i.posthog.com")
+else:
+    _posthog = None
+
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Thought Biography API",
@@ -300,6 +323,15 @@ def create_entry(
         process_entry_for_folders(uid, entry_id, concept_labels)
     except Exception as _fe:
         print(f"[folders] skipped for entry {entry_id}: {_fe}")
+
+    if _posthog:
+        try:
+            _posthog.capture(uid, "entry_created", {
+                "word_count": len(req.content.split()),
+                "concept_count": len(extraction.get("concepts", [])),
+            })
+        except Exception as _ph:
+            print(f"[posthog] capture failed: {_ph}")
 
     return {
         "id":                entry_id,

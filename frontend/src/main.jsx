@@ -1,6 +1,26 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import Root from "./root";
+import * as Sentry from "@sentry/react";
+import posthog from "posthog-js";
+
+// ── Sentry ─────────────────────────────────────────────────────────────────────
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    integrations: [Sentry.browserTracingIntegration()],
+    tracesSampleRate: 0.1,
+    environment: import.meta.env.MODE,
+  });
+}
+
+// ── PostHog ────────────────────────────────────────────────────────────────────
+if (import.meta.env.VITE_POSTHOG_KEY) {
+  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
+    api_host: import.meta.env.VITE_POSTHOG_HOST || "https://us.i.posthog.com",
+    person_profiles: "identified_only",
+  });
+}
 
 // ── Render the app ────────────────────────────────────────────────────────────
 createRoot(document.getElementById("root")).render(

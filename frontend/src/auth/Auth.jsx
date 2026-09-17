@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import posthog from "posthog-js";
+import * as Sentry from "@sentry/react";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -9,6 +11,10 @@ export const AuthStorage = {
     sessionStorage.setItem("tb_access",  tokens.access_token);
     localStorage.setItem("tb_refresh",   tokens.refresh_token);
     localStorage.setItem("tb_user",      JSON.stringify(user));
+    if (user?.id) {
+      posthog.identify(user.id, { email: user.email });
+      Sentry.setUser({ id: user.id, email: user.email });
+    }
   },
   getAccess:  () => sessionStorage.getItem("tb_access"),
   getRefresh: () => localStorage.getItem("tb_refresh"),
@@ -17,6 +23,8 @@ export const AuthStorage = {
     sessionStorage.removeItem("tb_access");
     localStorage.removeItem("tb_refresh");
     localStorage.removeItem("tb_user");
+    posthog.reset();
+    Sentry.setUser(null);
   },
   isLoggedIn: () => !!sessionStorage.getItem("tb_access"),
 };
