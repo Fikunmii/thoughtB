@@ -529,6 +529,14 @@ def resolve_contradiction(
                 r.resolved_at = datetime(),
                 r.resolution_note = $note
         """, ca=ca, cb=cb, uid=uid, note=note)
+    if _posthog:
+        try:
+            _posthog.capture(uid, "contradiction_resolved", {
+                "pair": f"{ca}|{cb}",
+                "note_length": len(note),
+            })
+        except Exception as _ph:
+            print(f"[posthog] capture failed: {_ph}")
     return {"status": "resolved", "concept_a": ca, "concept_b": cb}
 
 

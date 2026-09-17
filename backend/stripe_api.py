@@ -48,6 +48,12 @@ def get_neo4j_driver():
     return driver
 
 
+def get_posthog():
+    """Import shared PostHog client from api.py (None if not configured)."""
+    from api import _posthog
+    return _posthog
+
+
 def get_or_create_customer(user: dict) -> str:
     s = get_stripe()
     driver = get_neo4j_driver()
@@ -177,6 +183,15 @@ async def stripe_webhook(request: Request):
                 except Exception:
                     pass
             set_user_plan(uid, plan_key, sub_id, sub_status)
+            _ph = get_posthog()
+            if _ph:
+                try:
+                    _ph.capture(uid, "subscription_started", {
+                        "plan": plan_key,
+                        "status": sub_status,
+                    })
+                except Exception as _e:
+                    print(f"[posthog] capture failed: {_e}")
 
     elif et == "customer.subscription.updated":
         sub_id = data["id"]
@@ -199,6 +214,12 @@ async def stripe_webhook(request: Request):
             ).single()
             if r:
                 set_user_plan(r["uid"], "free", None, "canceled")
+                _ph = get_posthog()
+                if _ph:
+                    try:
+                        _ph.capture(r["uid"], "subscription_cancelled", {})
+                    except Exception as _e:
+                        print(f"[posthog] capture failed: {_e}")
 
     return {"received": True}
 

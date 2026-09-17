@@ -31,6 +31,15 @@ driver = GraphDatabase.driver(
     auth=(NEO4J_USER, NEO4J_PASSWORD)
 )
 
+_posthog_key = os.getenv("POSTHOG_API_KEY")
+if _posthog_key:
+    import posthog as _posthog
+
+    _posthog.api_key = _posthog_key
+    _posthog.host = os.getenv("POSTHOG_HOST", "https://us.i.posthog.com")
+else:
+    _posthog = None
+
 def db(cypher, params=None):
     with driver.session() as s:
         return [r.data() for r in s.run(cypher, params or {})]
@@ -290,6 +299,13 @@ def save_biography(body: dict, current_user: dict = Depends(get_current_user)):
             MATCH (u:User {id:$uid})
             SET u.biography_text = $text, u.biography_updated = datetime()
         """, uid=uid, text=text)
+    if _posthog:
+        try:
+            _posthog.capture(uid, "biography_generated", {
+                "length_chars": len(text),
+            })
+        except Exception as _ph:
+            print(f"[posthog] capture failed: {_ph}")
     return {"status": "saved"}
 
 
