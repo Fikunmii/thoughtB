@@ -652,6 +652,12 @@ def _get_current_user_dep():
     return Depends(get_current_user)
 
 
+def _subscribed_user_dep():
+    """Same, but 402s unless the user has an active/trialing subscription."""
+    from auth import require_subscription
+    return Depends(require_subscription)
+
+
 @router.get("/settings")
 def get_digest_settings(current_user: dict = _get_current_user_dep()):
     with driver.session() as s:
@@ -717,7 +723,7 @@ def unsubscribe(current_user: dict = _get_current_user_dep()):
 
 
 @router.post("/preview")
-def preview_digest(current_user: dict = _get_current_user_dep()):
+def preview_digest(current_user: dict = _subscribed_user_dep()):
     """
     Generate and return a digest preview for the current user.
     Does NOT send an email. Returns the narrative and signals.
@@ -747,7 +753,7 @@ def preview_digest(current_user: dict = _get_current_user_dep()):
 
 
 @router.post("/test")
-def send_test_digest(current_user: dict = _get_current_user_dep()):
+def send_test_digest(current_user: dict = _subscribed_user_dep()):
     """Send a real test digest email to the current user right now."""
     result = process_user_digest(current_user["user_id"], force=True)
     if result["status"] == "failed":

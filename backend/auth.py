@@ -11,6 +11,7 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from neo4j import GraphDatabase
 import os
+import time
 import uuid
 from dotenv import load_dotenv
 
@@ -97,6 +98,58 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer)
     if payload.get("type") != "access":
         raise HTTPException(status_code=401, detail="Invalid token type")
     return {"user_id": payload["sub"], "email": payload["email"]}
+
+
+# ── Subscription gate ─────────────────────────────────────────────────────────
+# The 14-day Stripe trial (card required) is the only way in. Without a trialing
+# or active Personal/Professional subscription an account is read-only: every
+# endpoint that creates data or calls an AI model depends on require_subscription.
+_PAID_PLANS      = ("personal", "professional")
+_ACTIVE_STATUSES = ("trialing", "active")
+_ACCESS_TTL      = 15  # seconds — keeps the gate off Neo4j on every request
+_access_cache: dict = {}
+
+
+def get_access(user_id: str) -> dict:
+    now = time.time()
+    hit = _access_cache.get(user_id)
+    if hit and hit[0] > now:
+        return hit[1]
+    with driver.session() as session:
+        r = session.run(
+            "MATCH (u:User {id: $uid}) "
+            "RETURN coalesce(u.plan, 'free') AS plan, "
+            "       coalesce(u.subscription_status, 'active') AS status",
+            uid=user_id,
+        ).single()
+    plan       = r["plan"]   if r else "free"
+    sub_status = r["status"] if r else "active"
+    access = {
+        "plan": plan,
+        "status": sub_status,
+        "has_access": plan in _PAID_PLANS and sub_status in _ACTIVE_STATUSES,
+    }
+    _access_cache[user_id] = (now + _ACCESS_TTL, access)
+    return access
+
+
+def invalidate_access(user_id: str) -> None:
+    _access_cache.pop(user_id, None)
+
+
+def require_subscription(current_user: dict = Depends(get_current_user)) -> dict:
+    access = get_access(current_user["user_id"])
+    if access["has_access"]:
+        return current_user
+    if access["plan"] in _PAID_PLANS and access["status"] in ("past_due", "unpaid"):
+        raise HTTPException(status_code=402, detail={
+            "reason": "payment_failed",
+            "message": "Your last payment didn't go through. Update your card to keep using Thought Biography.",
+        })
+    raise HTTPException(status_code=402, detail={
+        "reason": "subscription_required",
+        "message": "Start your 14-day free trial to begin journaling.",
+    })
 
 
 # ── Neo4j user helpers ────────────────────────────────────────────────────────

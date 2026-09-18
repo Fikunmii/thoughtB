@@ -13,8 +13,7 @@ Conversations persist in Neo4j:
   (:User)-[:HAS_CHAT_SESSION]->(:ChatSession)-[:HAS_MESSAGE]->(:ChatMessage)
   (:ChatMessage)-[:CITED]->(:Entry)
 
-Free tier: CHAT_FREE_TIER_LIMIT messages/month (402 + upgrade prompt),
-checked the same way as the 30-entry limit in api.py.
+Gated by auth.require_subscription (402 until the user starts their Stripe trial).
 
 Registered from api.py (alongside the other register_* calls):
     try:
@@ -38,7 +37,6 @@ from pydantic import BaseModel
 CHAT_MODEL = os.getenv("CHAT_MODEL", "claude-sonnet-4-6")
 MAX_CONTEXT_ENTRIES = int(os.getenv("CHAT_MAX_CONTEXT_ENTRIES", "8"))
 MAX_HISTORY_TURNS = int(os.getenv("CHAT_MAX_HISTORY_TURNS", "6"))
-FREE_TIER_MONTHLY_LIMIT = int(os.getenv("CHAT_FREE_TIER_LIMIT", "15"))
 
 # Set by register_chat_routes() from the shared instances already created in
 # api.py, so this module doesn't open a second Neo4j connection pool
@@ -301,52 +299,9 @@ def _delete_session(uid: str, sid: str) -> None:
         )
 
 
-def _free_tier_remaining(uid: str) -> int:
-    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    with driver.session() as s:
-        r = s.run(
-            """
-            MATCH (:User {id: $uid})-[:HAS_CHAT_SESSION]->(:ChatSession)
-                  -[:HAS_MESSAGE]->(m:ChatMessage)
-            WHERE m.role = 'user' AND m.created_at >= datetime($month_start)
-            RETURN COUNT(m) AS used
-            """,
-            uid=uid, month_start=month_start.isoformat(),
-        ).single()
-    return max(0, FREE_TIER_MONTHLY_LIMIT - (r["used"] if r else 0))
-
-
-def _user_access(uid: str) -> dict:
-    """
-    Same pattern as the /entries gate in api.py: full unlimited access requires
-    plan != free AND a healthy subscription status. A lapsed trial or failed
-    renewal (past_due/unpaid) — or a canceled sub, which the webhook already
-    resets to plan='free' — falls back to the free-tier message cap instead of
-    an unconditional block, so access resumes automatically once Stripe
-    successfully charges again and status flips back to active.
-    """
-    with driver.session() as s:
-        r = s.run(
-            "MATCH (u:User {id: $uid}) "
-            "RETURN coalesce(u.plan, 'free') AS plan, coalesce(u.subscription_status, 'active') AS status",
-            uid=uid,
-        ).single()
-    plan = r["plan"] if r else "free"
-    status = r["status"] if r else "active"
-    return {
-        "plan": plan,
-        "status": status,
-        "has_full_access": plan != "free" and status in ("active", "trialing"),
-    }
-
-
-def _user_plan(uid: str) -> str:
-    return _user_access(uid)["plan"]
-
-
 # ── Route registrar ───────────────────────────────────────────────────────────
 def register_chat_routes(app):
-    from auth import get_current_user  # local import avoids circulars, same as other modules
+    from auth import get_current_user, require_subscription  # local import avoids circulars, same as other modules
 
     global driver, claude
     if driver is None or claude is None:
@@ -359,7 +314,7 @@ def register_chat_routes(app):
     @app.post("/chat/sessions", tags=["chat"])
     def create_session(
         body: ChatSessionCreate,
-        current_user: dict = Depends(get_current_user),
+        current_user: dict = Depends(require_subscription),
     ):
         return _create_session(current_user["user_id"], body.title or "New conversation")
 
@@ -379,51 +334,27 @@ def register_chat_routes(app):
 
     @app.get("/chat/quota", tags=["chat"])
     def quota(current_user: dict = Depends(get_current_user)):
-        uid = current_user["user_id"]
-        access = _user_access(uid)
-        capped = not access["has_full_access"]
+        # No free chat tier any more — chat is part of the subscription.
+        from auth import get_access
+        access = get_access(current_user["user_id"])
         return {
             "plan": access["plan"],
             "status": access["status"],
-            "trial_ended": access["plan"] != "free" and access["status"] in ("past_due", "unpaid"),
-            "limit": FREE_TIER_MONTHLY_LIMIT if capped else None,
-            "remaining": _free_tier_remaining(uid) if capped else None,
+            "subscribed": access["has_access"],
+            "trial_ended": False,
+            "limit": None,
+            "remaining": None,
         }
 
     @app.post("/chat/sessions/{sid}/messages", tags=["chat"])
     def send_message(
         sid: str,
         body: ChatMessageIn,
-        current_user: dict = Depends(get_current_user),
+        current_user: dict = Depends(require_subscription),
     ):
         uid = current_user["user_id"]
 
         _assert_owns_session(uid, sid)
-
-        # Gating — same pattern as the 30-entry limit in api.py. A lapsed trial or
-        # failed renewal falls back to the free-tier cap rather than a hard block,
-        # so chat resumes automatically once Stripe successfully charges again.
-        access = _user_access(uid)
-        if not access["has_full_access"]:
-            remaining = _free_tier_remaining(uid)
-            if remaining <= 0:
-                if access["plan"] != "free" and access["status"] in ("past_due", "unpaid"):
-                    raise HTTPException(
-                        status_code=402,
-                        detail={
-                            "reason": "trial_ended",
-                            "message": "Your free trial has ended and your last payment didn't go "
-                            "through. Update your card to keep chatting with your journal.",
-                        },
-                    )
-                raise HTTPException(
-                    status_code=402,
-                    detail={
-                        "reason": "limit_reached",
-                        "message": f"Free tier includes {FREE_TIER_MONTHLY_LIMIT} chat messages "
-                        f"per month. Upgrade to Personal to keep chatting with your journal.",
-                    },
-                )
 
         question = body.content.strip()
         if not question:

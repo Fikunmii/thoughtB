@@ -674,7 +674,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
             display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center",
             animation: "lp-fade-up 0.6s ease 0.4s both",
           }}>
-            <button className="lp-btn-primary" onClick={() => onGetStarted("free")} style={{
+            <button className="lp-btn-primary" onClick={() => onGetStarted()} style={{
               padding: "15px 34px", minHeight: 44,
               background: "rgba(200,169,110,0.14)",
               border: `1px solid rgba(200,169,110,0.45)`,
@@ -684,7 +684,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
               cursor: "pointer", fontFamily: T.body,
               transition: "all 0.2s",
             }}>
-              Begin your record — free
+              Start your 14-day free trial
             </button>
             <button className="lp-btn-ghost" onClick={() => section("how-it-works")} style={{
               padding: "15px 24px", minHeight: 44,
@@ -704,7 +704,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
             marginTop: 24, color: T.creamMuted, fontSize: 12,
             animation: "lp-fade-up 0.6s ease 0.5s both",
           }}>
-            Free for your first 30 entries. No credit card.
+            14 days free · card required · cancel anytime
           </div>
         </div>
       </section>
@@ -979,7 +979,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
 
       {/* ── Pricing ────────────────────────────────────────────────────────── */}
       <section id="pricing" style={{ padding: "clamp(56px, 10vw, 100px) clamp(20px, 6vw, 48px)", borderTop: `1px solid ${T.border}` }}>
-        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+        <div style={{ maxWidth: 760, margin: "0 auto" }}>
           <FadeIn>
             <div style={{ textAlign: "center", marginBottom: 64 }}>
               <div style={{ color: T.goldMuted, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 16 }}>
@@ -989,32 +989,18 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
                 fontFamily: T.serif, fontWeight: 300,
                 fontSize: "clamp(26px, 3vw, 40px)", color: T.cream,
               }}>
-                Start free. Pay when your graph has depth.
+                Two plans. Both start with 14 days free.
               </h2>
             </div>
           </FadeIn>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, alignItems: "start" }}>
             <PricingCard
-              tier="Free"
-              price="$0"
-              sub="forever"
-              delay={0}
-              features={[
-                "30 journal entries",
-                "Core concept graph",
-                "Basic contradiction detection",
-                "5 queries per day",
-              ]}
-              cta="Begin for free"
-              onCta={() => onGetStarted("free")}
-            />
-            <PricingCard
               tier="Personal"
               price="$15.99"
               sub="per month"
               highlighted
-              delay={80}
+              delay={0}
               features={[
                 "Unlimited entries",
                 "Full concept drift tracking",
@@ -1031,7 +1017,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
               tier="Professional"
               price="$49.99"
               sub="per month"
-              delay={160}
+              delay={80}
               features={[
                 "Everything in Personal",
                 "Share graph with therapist or coach",
@@ -1039,7 +1025,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
                 "Up to 5 share links",
                 "Priority support",
               ]}
-              cta="Start free trial"
+              cta="Start 14-day free trial"
               onCta={() => onGetStarted("professional")}
             />
           </div>
@@ -1076,9 +1062,9 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
               color: T.creamMuted, fontSize: 17, lineHeight: 1.7, marginBottom: 40,
               maxWidth: 500, margin: "0 auto 40px", fontFamily: T.body,
             }}>
-              Free for your first 30 entries. No credit card. Your data is encrypted and yours to keep.
+              14 days free, card required, cancel anytime. Your data is encrypted and yours to keep.
             </p>
-            <button className="lp-btn-primary" onClick={() => onGetStarted("free")} style={{
+            <button className="lp-btn-primary" onClick={() => onGetStarted()} style={{
               padding: "17px 44px",
               background: "rgba(200,169,110,0.14)",
               border: `1px solid rgba(200,169,110,0.45)`,
@@ -1088,7 +1074,7 @@ export default function LandingPage({ onSignIn, onGetStarted }) {
               cursor: "pointer", fontFamily: T.body,
               transition: "all 0.2s",
             }}>
-              Begin your record
+              Start your free trial
             </button>
           </div>
         </FadeIn>

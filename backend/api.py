@@ -64,7 +64,7 @@ driver     = GraphDatabase.driver(
 claude = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 # ── Import route registrars ───────────────────────────────────────────────────
-from auth                  import register_auth_routes, get_current_user
+from auth                  import register_auth_routes, get_current_user, require_subscription
 from search_api            import register_search_routes
 from export_api            import register_export_routes
 from reminders_sharing_api import register_reminders_sharing_routes
@@ -265,37 +265,12 @@ class UpdateEntryRequest(BaseModel):
 @app.post("/entries", tags=["entries"])
 def create_entry(
     req: CreateEntryRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_subscription),
 ):
     """
     Create a new entry and process it through the AI pipeline.
     Returns the entry ID plus the extracted graph data.
     """
-    # Full unlimited access requires plan != free AND a healthy subscription status.
-    # past_due/unpaid (card failed at trial-end or renewal) fall back to the same
-    # 30-entry cap as free — not a hard cutoff, so access resumes automatically
-    # the moment Stripe successfully charges again and status flips back to active.
-    _uid = current_user["user_id"]
-    with driver.session() as _s:
-        _plan_r = _s.run("""
-            MATCH (u:User {id:$uid})
-            RETURN coalesce(u.plan,'free') AS plan, coalesce(u.subscription_status,'active') AS status
-        """, uid=_uid).single()
-        _plan   = (_plan_r["plan"] if _plan_r else "free")
-        _status = (_plan_r["status"] if _plan_r else "active")
-        _has_full_access = _plan != "free" and _status in ("active", "trialing")
-        if not _has_full_access:
-            _cnt = _s.run("MATCH (e:Entry {user_id:$uid}) RETURN count(e) AS n", uid=_uid).single()
-            if _cnt and _cnt["n"] >= 30:
-                if _plan != "free" and _status in ("past_due", "unpaid"):
-                    raise HTTPException(status_code=402, detail={
-                        "reason": "payment_failed",
-                        "message": "Your last payment didn't go through. Update your card to keep unlimited entries.",
-                    })
-                raise HTTPException(status_code=402, detail={
-                    "reason": "limit_reached",
-                    "message": "Free tier limit reached (30 entries). Upgrade to Personal or Professional for unlimited entries.",
-                })
     uid        = current_user["user_id"]
     entry_id   = str(uuid.uuid4())
     created_at = req.date or datetime.utcnow().isoformat()
@@ -415,7 +390,7 @@ def get_entry(
 def update_entry(
     entry_id: str,
     req: UpdateEntryRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_subscription),
 ):
     uid = current_user["user_id"]
     with driver.session() as s:
@@ -517,7 +492,7 @@ def get_graph(current_user: dict = Depends(get_current_user)):
 @app.post("/contradictions/resolve", tags=["graph"])
 def resolve_contradiction(
     body: dict,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_subscription)
 ):
     uid = current_user["user_id"]
     ca  = body.get("concept_a", "")
@@ -551,7 +526,7 @@ def resolve_contradiction(
 @app.post("/contradictions/analyze", tags=["graph"])
 def analyze_contradiction(
     body: dict,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_subscription)
 ):
     """Use Claude to explain why two concepts contradict and suggest resolution paths."""
     uid = current_user["user_id"]

@@ -12,7 +12,7 @@ from neo4j import GraphDatabase
 import anthropic
 import os, uuid, json
 from datetime import datetime, timedelta
-from auth import get_current_user, get_user_by_id
+from auth import get_current_user, get_user_by_id, require_subscription
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -40,14 +40,14 @@ class ReminderSettings(BaseModel):
 
 
 @router.get("/reminders/prompts")
-def get_prompts(current_user: dict = Depends(get_current_user)):
+def get_prompts(current_user: dict = Depends(require_subscription)):
     uid = current_user["user_id"]
     prompts = generate_prompts(uid)
     return {"prompts": prompts}
 
 
 @router.post("/reminders/generate")
-def regenerate_prompts(current_user: dict = Depends(get_current_user)):
+def regenerate_prompts(current_user: dict = Depends(require_subscription)):
     uid = current_user["user_id"]
     prompts = generate_prompts(uid, force=True)
     return {"prompts": prompts}
@@ -224,7 +224,7 @@ def list_shares(current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/shares")
-def create_share(req: CreateShareRequest, current_user: dict = Depends(get_current_user)):
+def create_share(req: CreateShareRequest, current_user: dict = Depends(require_subscription)):
     uid   = current_user["user_id"]
     token = str(uuid.uuid4())
     expires = datetime.utcnow() + timedelta(days=req.expires_in_days)

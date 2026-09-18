@@ -4,18 +4,21 @@ Plans:
   Personal     $15.99/mo  price_1TnbLAKhwAvA6zUqJI8YJYZI  (14-day trial, card required)
   Professional $49.99/mo  price_1TnbMDKhwAvA6zUqkE0QkPxw  (14-day trial, card required)
 
-Trial is handled natively by Stripe (subscription_data.trial_period_days) —
-users pick a plan and enter payment details at signup; Stripe starts the clock
-and auto-charges when the trial ends. The Free plan has no Stripe subscription
-at all — it's a standalone 30-entry cap for people who skip checkout.
+The 14-day trial is the ONLY way in — there is no free tier. Stripe runs the
+trial (subscription_data.trial_period_days) and always collects a card up front,
+so it auto-charges when the trial ends. One trial per account: once a customer
+has had any subscription, later checkouts start billing immediately.
+
+Accounts without a trialing/active subscription are read-only — see
+auth.require_subscription, which every write/AI endpoint depends on.
 """
 import os, stripe
 from fastapi import APIRouter, Depends, Request, HTTPException
-from auth import get_current_user
+from auth import get_current_user, get_access, invalidate_access
 
 STRIPE_SECRET_KEY   = os.getenv("STRIPE_SECRET_KEY", "")
 WEBHOOK_SECRET      = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-FRONTEND_URL        = os.getenv("FRONTEND_URL", "https://thoughtb-production.up.railway.app")
+FRONTEND_URL        = os.getenv("FRONTEND_URL", "https://tbfrontend.netlify.app")
 
 PLANS = {
     "personal": {
@@ -73,6 +76,14 @@ def get_or_create_customer(user: dict) -> str:
     return customer.id
 
 
+def trial_eligible(customer_id: str | None) -> bool:
+    """A customer who has ever had a subscription (any status) has used their trial."""
+    if not customer_id:
+        return True
+    s = get_stripe()
+    return len(s.Subscription.list(customer=customer_id, status="all", limit=1).data) == 0
+
+
 def set_user_plan(uid: str, plan: str, sub_id: str = None, status: str = "active"):
     driver = get_neo4j_driver()
     with driver.session() as sess:
@@ -80,6 +91,7 @@ def set_user_plan(uid: str, plan: str, sub_id: str = None, status: str = "active
             MATCH (u:User {id:$uid})
             SET u.plan=$plan, u.subscription_id=$sub_id, u.subscription_status=$status
         """, uid=uid, plan=plan, sub_id=sub_id, status=status)
+    invalidate_access(uid)
 
 
 def get_user_plan(uid: str) -> dict:
@@ -92,13 +104,14 @@ def get_user_plan(uid: str) -> dict:
             RETURN coalesce(u.plan,'free') AS plan,
                    coalesce(u.subscription_status,'active') AS status,
                    u.subscription_id AS sub_id,
+                   u.stripe_customer_id AS cid,
                    entry_count
         """, uid=uid).single()
         if not r:
-            return {"plan": "free", "status": "active", "sub_id": None, "entry_count": 0}
+            return {"plan": "free", "status": "active", "sub_id": None, "cid": None, "entry_count": 0}
         return {
             "plan": r["plan"], "status": r["status"], "sub_id": r["sub_id"],
-            "entry_count": r["entry_count"],
+            "cid": r["cid"], "entry_count": r["entry_count"],
         }
 
 
@@ -106,14 +119,21 @@ def get_user_plan(uid: str) -> dict:
 
 @router.get("/subscription/status")
 def subscription_status(current_user: dict = Depends(get_current_user)):
-    info   = get_user_plan(current_user["user_id"])
-    plan   = info["plan"]
-    limits = {"max_entries": 30, "daily_ai_queries": 5} if plan == "free" else {"max_entries": None, "daily_ai_queries": None}
+    uid    = current_user["user_id"]
+    access = get_access(uid)
+    info   = get_user_plan(uid)
+    eligible = False
+    if not access["has_access"]:
+        try:
+            eligible = trial_eligible(info["cid"])
+        except Exception as e:
+            print(f"[stripe] trial eligibility check failed: {e}")
+            eligible = info["cid"] is None
     return {
-        "plan":   plan,
-        "status": info["status"],
-        "limits": limits,
-        "entries_used": info["entry_count"] if plan == "free" else None,
+        "plan":           access["plan"],
+        "status":         access["status"],
+        "subscribed":     access["has_access"],
+        "trial_eligible": eligible,
         "plans":  {k: {"name": v["name"], "amount": v["amount"], "trial_days": v["trial_days"]} for k, v in PLANS.items()},
     }
 
@@ -124,20 +144,66 @@ def create_checkout(body: dict, current_user: dict = Depends(get_current_user)):
     if plan_key not in PLANS:
         raise HTTPException(400, "Invalid plan")
 
-    s          = get_stripe()
-    plan       = PLANS[plan_key]
+    if get_access(current_user["user_id"])["has_access"]:
+        raise HTTPException(400, "You already have an active subscription — manage it from Billing.")
+
+    s           = get_stripe()
+    plan        = PLANS[plan_key]
     customer_id = get_or_create_customer(current_user)
+
+    subscription_data = {}
+    if trial_eligible(customer_id):
+        # Card is always collected; if it's missing when the trial ends, cancel
+        # rather than leaving a zombie subscription.
+        subscription_data = {
+            "trial_period_days": plan["trial_days"],
+            "trial_settings": {"end_behavior": {"missing_payment_method": "cancel"}},
+        }
 
     session = s.checkout.Session.create(
         customer=customer_id,
         mode="subscription",
         line_items=[{"price": plan["price_id"], "quantity": 1}],
-        subscription_data={"trial_period_days": plan["trial_days"]},
-        success_url=f"{FRONTEND_URL}?subscribed=true&plan={plan_key}",
+        payment_method_collection="always",
+        subscription_data=subscription_data,
+        success_url=f"{FRONTEND_URL}?subscribed=true&plan={plan_key}&session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{FRONTEND_URL}?subscribed=false",
         metadata={"user_id": current_user["user_id"], "plan": plan_key},
     )
     return {"checkout_url": session.url}
+
+
+@router.post("/subscription/confirm")
+def confirm_checkout(body: dict, current_user: dict = Depends(get_current_user)):
+    """
+    Called by the frontend when Stripe redirects back with ?session_id=...
+    Activates the plan immediately instead of waiting on the webhook, so a
+    slow/missed webhook can never leave a paying user locked out. The webhook
+    still runs and sets the same values.
+    """
+    session_id = body.get("session_id")
+    if not session_id:
+        raise HTTPException(400, "session_id required")
+
+    s = get_stripe()
+    try:
+        session = s.checkout.Session.retrieve(session_id)
+    except Exception:
+        raise HTTPException(400, "Unknown checkout session")
+
+    meta = session.get("metadata") or {}
+    if meta.get("user_id") != current_user["user_id"]:
+        raise HTTPException(403, "This checkout session belongs to another account")
+    if session.get("status") != "complete":
+        raise HTTPException(409, "Checkout not completed")
+
+    plan_key   = meta.get("plan", "personal")
+    sub_id     = session.get("subscription")
+    sub_status = "active"
+    if sub_id:
+        sub_status = s.Subscription.retrieve(sub_id).status
+    set_user_plan(current_user["user_id"], plan_key, sub_id, sub_status)
+    return {"plan": plan_key, "status": sub_status, "subscribed": sub_status in ("trialing", "active")}
 
 
 @router.post("/subscription/portal")

@@ -116,6 +116,7 @@ export default function ChatPage({ user, onNavigate }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: text.slice(0, 40) }),
       });
+      if (r.status === 402) { setInput(text); return; }   // <TrialGate /> handles the prompt
       if (!r.ok) { setError("Could not start a conversation."); return; }
       const s = await r.json();
       sid = s.id;

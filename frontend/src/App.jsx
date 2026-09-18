@@ -19,6 +19,7 @@ import TherapistMode        from "./pages/TherapistMode";
 import DigestSettings       from "./pages/DigestSettings";
 import ImportHistory        from "./pages/ImportHistory";
 import Billing              from "./pages/Billing";
+import { requestTrialPrompt } from "./components/plans";
 import ChatPage              from "./pages/ChatPage";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -91,6 +92,7 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get("subscribed") === "true" ? params.get("plan") : null;
   });
+  const [sub,         setSub]         = useState(null);   // /subscription/status — null until loaded
   const [collapsed,   setCollapsed]   = useState(false);
   const [connected,   setConnected]   = useState(true);
   const [stats,       setStats]       = useState({ entries: 0, concepts: 0, contradictions: 0 });
@@ -125,6 +127,12 @@ export default function App() {
         setBadgeCounts({ contradictions: d.stats.contradictions - (d.stats.resolved || 0) });
       }
     }).catch(() => {});
+  }, [authed, activeView]);
+
+  // ── Subscription status (drives the "start your free trial" bar) ──────────────
+  useEffect(() => {
+    if (!authed) return;
+    authFetch(`${API}/subscription/status`).then(r => r.json()).then(setSub).catch(() => {});
   }, [authed, activeView]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
@@ -356,6 +364,33 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {/* No active/trialing subscription: the app is read-only until the trial starts */}
+        {sub && sub.subscribed === false && (
+          <div style={{
+            flexShrink: 0, padding: "9px 16px", textAlign: "center",
+            background: "rgba(200,169,110,0.08)", borderBottom: "1px solid rgba(200,169,110,0.2)",
+            color: "#c8a96e", fontSize: 13, display: "flex", alignItems: "center",
+            justifyContent: "center", gap: 12, flexWrap: "wrap",
+          }}>
+            {["past_due", "unpaid"].includes(sub.status) && sub.plan !== "free"
+              ? "Your last payment didn't go through — update your card to keep using Thought Biography."
+              : sub.trial_eligible === false
+                ? "Your subscription isn't active — subscribe to keep journaling."
+                : "You're in read-only mode — start your 14-day free trial to journal and use AI features."}
+            <button
+              onClick={() => requestTrialPrompt(["past_due", "unpaid"].includes(sub.status) && sub.plan !== "free" ? "payment_failed" : "subscription_required")}
+              style={{
+                background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.5)",
+                borderRadius: 3, color: "#c8a96e", padding: "4px 12px", fontSize: 12,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              {["past_due", "unpaid"].includes(sub.status) && sub.plan !== "free"
+                ? "Update payment" : sub.trial_eligible === false ? "Subscribe" : "Start free trial"}
+            </button>
+          </div>
+        )}
 
         {/* View content */}
         <div style={{ flex: 1, overflow: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>

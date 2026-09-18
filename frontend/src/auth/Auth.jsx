@@ -55,18 +55,33 @@ export async function authFetch(url, options = {}) {
     AuthStorage.save({ access_token: data.access_token, refresh_token: data.refresh_token }, data.user);
 
     // Retry original request
-    return fetch(url, {
+    return notifyPaywall(await fetch(url, {
       ...options,
       headers: { ...options.headers, Authorization: `Bearer ${data.access_token}` },
-    });
+    }));
   }
 
+  return notifyPaywall(res);
+}
+
+// 402 subscription_required / payment_failed → ask <TrialGate /> to prompt the user.
+// The response is passed through untouched so callers can still handle it themselves.
+function notifyPaywall(res) {
+  if (res.status === 402) {
+    res.clone().json().then(d => {
+      const detail = d?.detail;
+      if (detail && typeof detail === "object" &&
+          (detail.reason === "subscription_required" || detail.reason === "payment_failed")) {
+        window.dispatchEvent(new CustomEvent("tb:paywall", { detail }));
+      }
+    }).catch(() => {});
+  }
   return res;
 }
 
 // ── Auth screen ───────────────────────────────────────────────────────────────
-export default function Auth({ onAuthenticated }) {
-  const [mode,   setMode]   = useState("login"); // "login" | "register"
+export default function Auth({ onAuthenticated, initialMode = "login" }) {
+  const [mode,   setMode]   = useState(initialMode); // "login" | "register"
   const [form,   setForm]   = useState({ email: "", password: "", display_name: "" });
   const [error,  setError]  = useState("");
   const [loading, setLoading] = useState(false);

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { authFetch } from "../auth/Auth";
+import { startCheckout, openBillingPortal } from "../components/plans";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const C = {
@@ -9,11 +10,6 @@ const C = {
 };
 
 const PLANS = [
-  {
-    key: "free", name: "Free", price: "$0", period: "forever",
-    features: ["30 journal entries", "Core concept graph", "Basic contradiction detection", "5 AI queries per day"],
-    cta: null,
-  },
   {
     key: "personal", name: "Personal", price: "$15.99", period: "per month",
     trial: "14-day free trial",
@@ -40,35 +36,29 @@ export default function Billing({ user, onNavigate }) {
       .finally(() => setLoading(false));
   }, []);
 
+  const [error, setError] = useState("");
+
   const handleUpgrade = async (planKey) => {
     setUpgrading(planKey);
+    setError("");
     try {
-      const res = await authFetch(`${API}/subscription/checkout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planKey }),
-      });
-      const { checkout_url } = await res.json();
-      window.location.href = checkout_url;
+      await startCheckout(planKey); // navigates to Stripe on success
     } catch (e) {
-      console.error(e);
+      setError(e.message);
       setUpgrading(null);
     }
   };
 
   const handleManage = async () => {
-    try {
-      const res = await authFetch(`${API}/subscription/portal`, { method: "POST" });
-      const { portal_url } = await res.json();
-      window.location.href = portal_url;
-    } catch (e) { console.error(e); }
+    setError("");
+    try { await openBillingPortal(); } catch (e) { setError(e.message); }
   };
 
+  const subscribed = !!status?.subscribed;
   const currentPlan = status?.plan || "free";
   const subStatus = status?.status;
   const paymentFailed = currentPlan !== "free" && (subStatus === "past_due" || subStatus === "unpaid");
-  const entriesUsed = status?.entries_used;
-  const freeStatusLabel = typeof entriesUsed === "number" ? `${entriesUsed}/30 entries used` : null;
+  const trialEligible = status?.trial_eligible !== false;   // one trial per account
 
   return (
     <div style={{ minHeight: "100dvh", background: C.bg, padding: "clamp(24px,6vw,40px) clamp(14px,4vw,24px)", fontFamily: "'EB Garamond', Georgia, serif" }}>
@@ -94,12 +84,19 @@ export default function Billing({ user, onNavigate }) {
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <div style={{ color: C.goldMuted, fontSize: 11, letterSpacing: "0.14em", marginBottom: 12 }}>PRICING</div>
           <h1 style={{ color: C.text, fontSize: 36, fontStyle: "italic", fontWeight: 400, margin: 0 }}>
-            Start free. Pay when your graph has depth.
+            {trialEligible ? "Two plans. Both start with 14 days free." : "Pick a plan to keep journaling."}
           </h1>
+          {trialEligible && (
+            <div style={{ color: C.textMuted, fontSize: 13, marginTop: 12 }}>
+              Card required. You won't be charged for 14 days — cancel anytime before then.
+            </div>
+          )}
+          {error && <div style={{ color: "#e07070", fontSize: 13, marginTop: 12 }}>{error}</div>}
           {currentPlan !== "free" && (
             <div style={{ marginTop: 16 }}>
               <span style={{ color: C.gold, fontSize: 13 }}>
                 Current plan: {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}
+                {subStatus === "trialing" ? " · free trial" : ""}
               </span>
               <button onClick={handleManage} style={{
                 marginLeft: 16, background: "transparent", border: `1px solid ${C.border}`,
@@ -114,7 +111,7 @@ export default function Billing({ user, onNavigate }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
           {PLANS.map(plan => {
-            const isCurrent = currentPlan === plan.key;
+            const isCurrent = subscribed && currentPlan === plan.key;
             const isPopular = plan.popular;
             return (
               <div key={plan.key} style={{
@@ -135,13 +132,10 @@ export default function Billing({ user, onNavigate }) {
                 <div style={{ color: C.gold, fontSize: 36, fontStyle: "italic", marginBottom: 4 }}>
                   {plan.price}
                 </div>
-                <div style={{ color: C.textMuted, fontSize: 12, marginBottom: (plan.trial || plan.key === "free") ? 4 : 24 }}>
+                <div style={{ color: C.textMuted, fontSize: 12, marginBottom: trialEligible ? 4 : 24 }}>
                   {plan.period}
                 </div>
-                {plan.key === "free" && freeStatusLabel && (
-                  <div style={{ color: C.goldMuted, fontSize: 11, marginBottom: 20 }}>{freeStatusLabel}</div>
-                )}
-                {plan.trial && (
+                {trialEligible && (
                   <div style={{ color: C.goldMuted, fontSize: 11, marginBottom: 20 }}>{plan.trial}</div>
                 )}
                 <div style={{ marginBottom: 24 }}>
@@ -155,25 +149,17 @@ export default function Billing({ user, onNavigate }) {
                   <div style={{ textAlign: "center", color: C.goldMuted, fontSize: 12, padding: "10px 0", border: `1px solid ${C.border}`, borderRadius: 3 }}>
                     Current plan
                   </div>
-                ) : plan.cta ? (
-                  <button onClick={() => handleUpgrade(plan.key)} disabled={!!upgrading} style={{
+                ) : (
+                  <button onClick={() => handleUpgrade(plan.key)} disabled={!!upgrading || subscribed} style={{
                     width: "100%", padding: "11px 0",
                     background: isPopular ? C.gold : "transparent",
                     border: `1px solid ${C.gold}`, borderRadius: 3,
                     color: isPopular ? "#1a1510" : C.gold,
-                    fontSize: 12, letterSpacing: "0.1em", cursor: upgrading ? "not-allowed" : "pointer",
+                    fontSize: 12, letterSpacing: "0.1em", cursor: (upgrading || subscribed) ? "not-allowed" : "pointer",
                     fontFamily: "'EB Garamond', Georgia, serif",
+                    opacity: subscribed ? 0.5 : 1,
                   }}>
-                    {upgrading === plan.key ? "Loading…" : plan.cta.toUpperCase()}
-                  </button>
-                ) : (
-                  <button onClick={() => onNavigate?.("journal")} style={{
-                    width: "100%", padding: "11px 0", background: "transparent",
-                    border: `1px solid ${C.border}`, borderRadius: 3,
-                    color: C.goldMuted, fontSize: 12, letterSpacing: "0.1em",
-                    cursor: "pointer", fontFamily: "'EB Garamond', Georgia, serif",
-                  }}>
-                    BEGIN FOR FREE
+                    {upgrading === plan.key ? "Loading…" : (trialEligible ? "Start 14-Day Free Trial" : "Subscribe").toUpperCase()}
                   </button>
                 )}
               </div>

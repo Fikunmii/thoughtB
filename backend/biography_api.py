@@ -15,7 +15,7 @@ import json
 import asyncio
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends
-from auth import get_current_user
+from auth import get_current_user, require_subscription
 from fastapi.responses import StreamingResponse, JSONResponse
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
@@ -211,7 +211,7 @@ async def biography_sse_stream(graph_data: dict):
 # and register with: app.include_router(biography_router)
 # or add directly: app.add_api_route("/biography/...", handler)
 
-async def get_biography_data():
+async def get_biography_data(current_user: dict = Depends(require_subscription)):
     """GET /biography/data — Returns assembled graph data for generation."""
     try:
         data = assemble_biography_data()
@@ -220,7 +220,7 @@ async def get_biography_data():
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-async def generate_biography_stream():
+async def generate_biography_stream(current_user: dict = Depends(require_subscription)):
     """
     GET /biography/generate — SSE stream of biography generation.
     Connect with EventSource in the frontend.
@@ -290,7 +290,7 @@ def get_biography_history(current_user: dict = Depends(get_current_user)):
         return {"history": [{"text": r["text"], "updated": str(r["updated"] or "")} for r in rows if r.get("text")]}
 
 
-def save_biography(body: dict, current_user: dict = Depends(get_current_user)):
+def save_biography(body: dict, current_user: dict = Depends(require_subscription)):
     """POST /biography/save — save generated biography text."""
     uid = current_user["user_id"]
     text = body.get("text", "")

@@ -475,11 +475,16 @@ def _current_user():
     return Depends(get_current_user)
 
 
+def _subscribed_user():
+    from auth import require_subscription
+    return Depends(require_subscription)
+
+
 @router.post("/limitless")
 async def upload_limitless_export(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    current_user: dict = _current_user(),
+    current_user: dict = _subscribed_user(),
 ):
     """
     Upload a Limitless or Rewind export file.

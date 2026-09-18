@@ -27,7 +27,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from auth import get_current_user
+from auth import get_current_user, require_subscription
 
 router = APIRouter(tags=["folders"])
 
@@ -279,7 +279,7 @@ def list_folders(current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/folders")
-def create_folder(req: CreateFolderRequest, current_user: dict = Depends(get_current_user)):
+def create_folder(req: CreateFolderRequest, current_user: dict = Depends(require_subscription)):
     """Manual folder creation, initiated directly by the user (not via suggestion)."""
     uid = current_user["user_id"]
     name = req.name.strip()
@@ -297,7 +297,7 @@ def create_folder(req: CreateFolderRequest, current_user: dict = Depends(get_cur
 
 
 @router.patch("/folders/{folder_id}")
-def rename_folder(folder_id: str, req: RenameFolderRequest, current_user: dict = Depends(get_current_user)):
+def rename_folder(folder_id: str, req: RenameFolderRequest, current_user: dict = Depends(require_subscription)):
     uid = current_user["user_id"]
     name = req.name.strip()
     if not name:
@@ -358,7 +358,7 @@ def get_folder_entries(folder_id: str, current_user: dict = Depends(get_current_
 
 
 @router.post("/folders/{folder_id}/entries/{entry_id}")
-def add_entry_to_folder(folder_id: str, entry_id: str, current_user: dict = Depends(get_current_user)):
+def add_entry_to_folder(folder_id: str, entry_id: str, current_user: dict = Depends(require_subscription)):
     """Manual file/move — lets the user override the fluid auto-assignment."""
     uid = current_user["user_id"]
     with _driver().session() as s:
@@ -399,7 +399,7 @@ def list_suggestions(current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/folders/suggestions/{suggestion_id}/accept")
-def accept_suggestion(suggestion_id: str, req: AcceptSuggestionRequest, current_user: dict = Depends(get_current_user)):
+def accept_suggestion(suggestion_id: str, req: AcceptSuggestionRequest, current_user: dict = Depends(require_subscription)):
     uid = current_user["user_id"]
     with _driver().session() as s:
         sugg = s.run("""
