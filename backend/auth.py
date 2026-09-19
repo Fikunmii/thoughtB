@@ -152,6 +152,16 @@ def require_subscription(current_user: dict = Depends(get_current_user)) -> dict
     })
 
 
+def require_professional(current_user: dict = Depends(require_subscription)) -> dict:
+    """Professional-only features (sharing with a therapist/coach). Personal gets an upgrade prompt."""
+    if get_access(current_user["user_id"])["plan"] == "professional":
+        return current_user
+    raise HTTPException(status_code=402, detail={
+        "reason": "upgrade_required",
+        "message": "Sharing your graph with a therapist or coach is part of the Professional plan.",
+    })
+
+
 # ── Neo4j user helpers ────────────────────────────────────────────────────────
 def create_user_node(user_id: str, email: str, display_name: str, hashed_pw: str):
     """Create a User node. All graph data for this user will link to this node."""

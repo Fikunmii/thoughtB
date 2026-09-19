@@ -10,9 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 from neo4j import GraphDatabase
 import anthropic
-import os, uuid, json
+import os, re, uuid, json, smtplib
+from email.mime.text import MIMEText
 from datetime import datetime, timedelta
-from auth import get_current_user, get_user_by_id, require_subscription
+from auth import get_current_user, get_user_by_id, require_subscription, require_professional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -206,6 +207,60 @@ class AnnotationRequest(BaseModel):
     text: str
 
 
+# Sharing is a Professional feature. Like Notion, the people you share with are free
+# (no account, no subscription), and access you already granted keeps working if you
+# later downgrade — but only Professional can create new links, and you can always revoke.
+FRONTEND_URL      = os.getenv("FRONTEND_URL", "https://tbfrontend.netlify.app").rstrip("/")
+MAX_ACTIVE_SHARES = 5
+SHARE_ROLES       = ("reader", "reader_with_entries", "annotator")
+_ROLE_TEXT = {
+    "reader":              "your concept graph and tensions",
+    "reader_with_entries": "your concept graph, tensions and short excerpts of recent entries",
+    "annotator":           "your concept graph, tensions and short excerpts of recent entries, and they can leave notes",
+}
+
+
+def _share_link(token: str) -> str:
+    # Query-string link on the site root: works on Netlify with no rewrite rules.
+    return f"{FRONTEND_URL}/?share_token={token}"
+
+
+def _dt(v):
+    """Neo4j DateTime -> ISO string the browser can parse (ms precision, no nanoseconds)."""
+    if v is None:
+        return None
+    s = v.isoformat() if hasattr(v, "isoformat") else str(v)
+    return re.sub(r"(\.\d{3})\d+", r"\1", s)
+
+
+def _send_share_email(to_email: str, link: str, owner_name: str, role: str, expires_at: datetime) -> bool:
+    """Best-effort: a failed email never blocks link creation. Returns True if sent."""
+    smtp_user = os.getenv("SMTP_USER", "")
+    if not smtp_user:
+        print("[share] SMTP not configured — share email not sent")
+        return False
+    body = (
+        f"{owner_name} has shared their Thought Biography with you.\n\n"
+        f"You can see {_ROLE_TEXT.get(role, 'their concept graph')}.\n"
+        "No account or payment is needed.\n\n"
+        f"Open it here (link is private — don't forward it):\n{link}\n\n"
+        f"Access expires on {expires_at.strftime('%B %d, %Y')}.\n"
+    )
+    msg = MIMEText(body)
+    msg["Subject"] = f"{owner_name} shared their Thought Biography with you"
+    msg["From"]    = f"Thought Biography <{os.getenv('EMAIL_FROM', smtp_user)}>"
+    msg["To"]      = to_email
+    try:
+        with smtplib.SMTP(os.getenv("SMTP_HOST", "smtp.gmail.com"), int(os.getenv("SMTP_PORT", "587")), timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user, os.getenv("SMTP_PASSWORD", ""))
+            server.sendmail(msg["From"], to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"[share] email send failed: {e}")
+        return False
+
+
 @router.get("/shares")
 def list_shares(current_user: dict = Depends(get_current_user)):
     uid = current_user["user_id"]
@@ -215,20 +270,40 @@ def list_shares(current_user: dict = Depends(get_current_user)):
             WHERE s.expires_at > datetime()
             RETURN s ORDER BY s.created_at DESC
         """, uid=uid)
-        shares = [dict(r["s"]) for r in result]
-        for s in shares:
-            for k in list(s):
-                if hasattr(s[k], "isoformat"):
-                    s[k] = s[k].isoformat()
-    return {"shares": shares}
+        rows = [dict(r["s"]) for r in result]
+    shares = [{
+        "id":          s["token"],
+        "email":       s.get("email"),
+        "role":        s.get("role"),
+        "expires_at":  _dt(s.get("expires_at")),
+        "created_at":  _dt(s.get("created_at")),
+        "last_viewed": _dt(s.get("last_viewed")),
+        "link":        _share_link(s["token"]),   # rebuilt so old links pick up the real domain
+    } for s in rows]
+    return {"shares": shares, "limit": MAX_ACTIVE_SHARES}
 
 
 @router.post("/shares")
-def create_share(req: CreateShareRequest, current_user: dict = Depends(require_subscription)):
-    uid   = current_user["user_id"]
-    token = str(uuid.uuid4())
-    expires = datetime.utcnow() + timedelta(days=req.expires_in_days)
-    link  = f"https://thoughtbiography.app/shared?share_token={token}"  # adjust domain
+def create_share(req: CreateShareRequest, current_user: dict = Depends(require_professional)):
+    uid = current_user["user_id"]
+    if req.role not in SHARE_ROLES:
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    with driver.session() as session:
+        active = session.run("""
+            MATCH (:User {id: $uid})-[:HAS_SHARE]->(s:ShareLink)
+            WHERE s.expires_at > datetime()
+            RETURN count(s) AS n
+        """, uid=uid).single()["n"]
+    if active >= MAX_ACTIVE_SHARES:
+        raise HTTPException(status_code=402, detail={
+            "reason": "share_limit",
+            "message": f"You can have up to {MAX_ACTIVE_SHARES} active share links. Revoke one to create another.",
+        })
+
+    token   = str(uuid.uuid4())
+    expires = datetime.utcnow() + timedelta(days=max(1, min(req.expires_in_days, 365)))
+    link    = _share_link(token)
 
     with driver.session() as session:
         session.run("""
@@ -244,31 +319,37 @@ def create_share(req: CreateShareRequest, current_user: dict = Depends(require_s
              email=req.email, role=req.role,
              expires=expires.isoformat(), link=link)
 
+    owner      = get_user_by_id(uid) or {}
+    email_sent = _send_share_email(req.email, link, owner.get("display_name") or "Someone", req.role, expires)
+
     share = {
         "id": token, "email": req.email, "role": req.role,
-        "expires_at": expires.isoformat(), "link": link, "last_viewed": None,
+        "expires_at": expires.isoformat() + "Z", "link": link, "last_viewed": None,
     }
-
-    # TODO: send email to req.email with the share link
-    # send_share_email(req.email, link, current_user)
-
-    return {"share": share, "link": link}
+    return {"share": share, "link": link, "email_sent": email_sent}
 
 
 @router.delete("/shares/{share_id}")
 def revoke_share(share_id: str, current_user: dict = Depends(get_current_user)):
+    # Deliberately not gated on the plan: a lapsed or downgraded owner can always cut off access.
     uid = current_user["user_id"]
     with driver.session() as session:
         session.run("""
-            MATCH (u:User {id: $uid})-[:HAS_SHARE]->(s:ShareLink {token: $token})
-            DETACH DELETE s
-        """, uid=uid, token=share_id)
+            MATCH (u:User {id: $uid})-[:HAS_SHARE]->(s:ShareLink)
+            WHERE s.token = $ref OR s.id = $ref
+            OPTIONAL MATCH (a:Annotation)-[:ON_SHARE]->(s)
+            DETACH DELETE a, s
+        """, uid=uid, ref=share_id)
     return {"status": "revoked"}
 
 
 @router.get("/shared/{share_token}")
 def view_shared_graph(share_token: str):
-    """Public endpoint — no auth required. Returns graph visible to token holder."""
+    """
+    Public endpoint — no auth, no subscription needed by the viewer. Deliberately does not
+    check the owner's plan either: links they already created keep working until they expire
+    or are revoked.
+    """
     with driver.session() as session:
         share = session.run("""
             MATCH (s:ShareLink {token: $token})
@@ -286,66 +367,68 @@ def view_shared_graph(share_token: str):
         uid   = s["owner_id"]
         role  = s["role"]
 
-        # Core concepts
-        concepts_r = session.run("""
+        core_concepts = [dict(r) for r in session.run("""
             MATCH (c:Concept)-[:BELONGS_TO]->(:User {id: $uid})
             WHERE c.is_core = true OR c.frequency >= 3
-            RETURN c.label AS label, c.frequency AS frequency,
-                   c.stability_score AS stability
+            RETURN c.label AS label, coalesce(c.frequency, 0) AS frequency,
+                   coalesce(c.stability_score, 0.0) AS stability
             ORDER BY c.frequency DESC LIMIT 20
-        """, uid=uid)
-        core_concepts = [dict(r) for r in concepts_r]
+        """, uid=uid)]
 
-        # Contradictions
-        contra_r = session.run("""
+        contradictions = [dict(r) for r in session.run("""
             MATCH (c1:Concept)-[r:CONTRADICTS]->(c2:Concept)
-            WHERE r.user_id = $uid AND r.resolved = false
-            RETURN c1.label AS c1, c2.label AS c2, r.tension_score AS tension_score
+            WHERE r.user_id = $uid AND coalesce(r.resolved, false) = false AND c1.label <> c2.label
+            RETURN c1.label AS c1, c2.label AS c2, coalesce(r.tension_score, 0.0) AS tension_score
             ORDER BY r.tension_score DESC LIMIT 5
-        """, uid=uid)
-        contradictions = [dict(r) for r in contra_r]
+        """, uid=uid)]
 
-        # Annotations
-        annotations_r = session.run("""
-            MATCH (a:Annotation)-[:ON_SHARE]->(s:ShareLink {token: $token})
-            RETURN a ORDER BY a.created_at
-        """, token=share_token)
-        annotations = [dict(r["a"]) for r in annotations_r]
+        annotations = [
+            {"id": a["id"], "text": a["text"], "created_at": _dt(a.get("created_at"))}
+            for a in (dict(r["a"]) for r in session.run("""
+                MATCH (a:Annotation)-[:ON_SHARE]->(s:ShareLink {token: $token})
+                RETURN a ORDER BY a.created_at
+            """, token=share_token))
+        ]
 
-        # Counts
         n_count = session.run("MATCH (c:Concept)-[:BELONGS_TO]->(:User {id: $uid}) RETURN count(c) AS n", uid=uid).single()["n"]
         e_count = session.run("MATCH ()-[r {user_id: $uid}]->() RETURN count(r) AS n", uid=uid).single()["n"]
 
-    result = {
-        "owner_name": u.get("display_name", "Anonymous"),
-        "role": role,
-        "expires_at": str(s.get("expires_at", "")),
-        "core_concepts": core_concepts,
-        "contradictions": contradictions,
-        "annotations": annotations,
-        "node_count": n_count,
-        "edge_count": e_count,
-    }
+        result = {
+            "owner_name": u.get("display_name") or "Anonymous",
+            "role": role,
+            "expires_at": _dt(s.get("expires_at")),
+            "core_concepts": core_concepts,
+            "contradictions": contradictions,
+            "annotations": annotations,
+            "node_count": n_count,
+            "edge_count": e_count,
+        }
 
-    if role in ("reader_with_entries", "annotator"):
-        # Add recent entry excerpts (NOT full content)
-        entries_r = session.run("""
-            MATCH (e:Entry)-[:BELONGS_TO]->(:User {id: $uid})
-            RETURN substring(e.content, 0, 200) AS excerpt, e.created_at AS date,
-                   e.emotional_tone AS tone
-            ORDER BY e.created_at DESC LIMIT 10
-        """, uid=uid)
-        result["recent_excerpts"] = [dict(r) for r in entries_r]
+        if role in ("reader_with_entries", "annotator"):
+            # Short excerpts only, never full entries. (Was outside the session block — crashed for these roles.)
+            result["recent_excerpts"] = [
+                {"excerpt": r["excerpt"], "date": _dt(r["date"]), "tone": r["tone"]}
+                for r in session.run("""
+                    MATCH (e:Entry)-[:BELONGS_TO]->(:User {id: $uid})
+                    RETURN substring(e.content, 0, 200) AS excerpt, e.created_at AS date,
+                           e.emotional_tone AS tone
+                    ORDER BY e.created_at DESC LIMIT 10
+                """, uid=uid)
+            ]
 
     return result
 
 
 @router.post("/shared/{share_token}/annotate")
 def add_annotation(share_token: str, req: AnnotationRequest):
+    text = req.text.strip()
+    if not text or len(text) > 2000:
+        raise HTTPException(status_code=400, detail="Note must be between 1 and 2000 characters")
+
     with driver.session() as session:
         share = session.run("""
             MATCH (s:ShareLink {token: $token})
-            WHERE s.role IN ['annotator'] AND s.expires_at > datetime()
+            WHERE s.role = 'annotator' AND s.expires_at > datetime()
             RETURN s
         """, token=share_token).single()
 
@@ -357,7 +440,7 @@ def add_annotation(share_token: str, req: AnnotationRequest):
             CREATE (a:Annotation {
                 id: $id, text: $text, created_at: datetime()
             })-[:ON_SHARE]->(s)
-        """, token=share_token, id=str(uuid.uuid4()), text=req.text)
+        """, token=share_token, id=str(uuid.uuid4()), text=text)
 
     return {"status": "added"}
 

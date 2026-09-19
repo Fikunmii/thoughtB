@@ -4,6 +4,7 @@ import PlanSelect              from "./auth/PlanSelect";
 import LandingPage             from "./marketing/LandingPage";
 import Onboarding              from "./onboarding/Onboarding";
 import TrialGate               from "./components/TrialGate";
+import SharedView              from "./pages/SharedView";
 import { startCheckout }        from "./components/plans";
 
 // ── The complete routing logic for Thought Biography ─────────────────────────
@@ -16,6 +17,7 @@ import { startCheckout }        from "./components/plans";
 //  State machine:
 //    "landing"     — visitor hasn't authenticated
 //    "auth"        — visitor clicked CTA, showing login/register
+//    "shared"      — opened a share link (?share_token=): public read-only viewer, no login
 //    "plan"        — just registered: start the 14-day Stripe trial (Personal/Professional) or skip
 //    "confirming"  — back from Stripe Checkout, activating the subscription
 //    "onboarding"  — just registered, first-time experience
@@ -31,12 +33,18 @@ function returnedSessionId() {
   return p.get("subscribed") === "true" ? p.get("session_id") : null;
 }
 
+function shareTokenFromUrl() {
+  return new URLSearchParams(window.location.search).get("share_token");
+}
+
 function nextScene() {
   return localStorage.getItem("tb_onboarded") ? "app" : "onboarding";
 }
 
 export default function Root() {
   const [scene, setScene] = useState(() => {
+    // A share link is a public page: therapists/coaches never see the marketing site or a login
+    if (shareTokenFromUrl()) return "shared";
     // Determine initial scene from stored state
     if (AuthStorage.isLoggedIn()) {
       // Returning from Stripe Checkout — activate the plan before showing anything
@@ -125,7 +133,9 @@ export default function Root() {
   // <TrialGate /> is mounted for every scene: any 402 from the API (a write or AI
   // call without a subscription) opens the "start your free trial" prompt.
   let content;
-  if (scene === "landing") {
+  if (scene === "shared") {
+    content = <SharedView shareToken={shareTokenFromUrl()} />;
+  } else if (scene === "landing") {
     content = <LandingPage onGetStarted={handleGetStarted} onSignIn={handleSignIn} />;
   } else if (scene === "auth") {
     content = <Auth onAuthenticated={handleAuthenticated} initialMode={authMode} />;

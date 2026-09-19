@@ -71,7 +71,7 @@ function notifyPaywall(res) {
     res.clone().json().then(d => {
       const detail = d?.detail;
       if (detail && typeof detail === "object" &&
-          (detail.reason === "subscription_required" || detail.reason === "payment_failed")) {
+          ["subscription_required", "payment_failed", "upgrade_required"].includes(detail.reason)) {
         window.dispatchEvent(new CustomEvent("tb:paywall", { detail }));
       }
     }).catch(() => {});

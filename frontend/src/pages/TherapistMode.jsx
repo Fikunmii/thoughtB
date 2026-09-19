@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { authFetch } from "../auth/Auth";
 import { Spinner, EmptyState, ErrorMessage } from "../components/ErrorBoundary";
+import { requestTrialPrompt } from "../components/plans";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -25,13 +26,23 @@ function inject() {
 }
 
 // ── Owner view: manage shares ─────────────────────────────────────────────────
-function OwnerView({ shares, onCreateShare, onRevokeShare, creating }) {
+function OwnerView({ shares, limit, isPro, subscribed, notice, onCreateShare, onRevokeShare, creating }) {
   const [email,    setEmail]    = useState("");
   const [role,     setRole]     = useState("reader");
   const [duration, setDuration] = useState(30);
 
+  const [copied, setCopied] = useState(null);
+  const atLimit = shares.length >= limit;
+
+  function copyLink(s) {
+    navigator.clipboard.writeText(s.link).then(() => {
+      setCopied(s.id);
+      setTimeout(() => setCopied(null), 1500);
+    }).catch(() => {});
+  }
+
   function handleCreate() {
-    if (!email.trim()) return;
+    if (!email.trim() || atLimit) return;
     onCreateShare({ email, role, expires_in_days: duration });
     setEmail("");
   }
@@ -46,7 +57,15 @@ function OwnerView({ shares, onCreateShare, onRevokeShare, creating }) {
         </div>
       </div>
 
-      {/* Invite form */}
+      {notice && (
+        <div style={{
+          padding: "10px 14px", marginBottom: 20, borderRadius: 3, fontSize: 13, lineHeight: 1.5,
+          background: C.tealFaint, border: "1px solid rgba(106,172,184,0.25)", color: C.teal,
+        }}>{notice}</div>
+      )}
+
+      {/* Invite form — Professional only; free viewers, paid owners */}
+      {isPro ? (
       <div style={{
         padding: "22px 24px", marginBottom: 28,
         background: C.surface,
@@ -93,7 +112,7 @@ function OwnerView({ shares, onCreateShare, onRevokeShare, creating }) {
             <option value={365}>1 year</option>
           </select>
         </div>
-        <button onClick={handleCreate} disabled={creating || !email.trim()} style={{
+        <button onClick={handleCreate} disabled={creating || !email.trim() || atLimit} style={{
           padding: "10px 22px",
           background: creating ? "none" : C.goldFaint,
           border: `1px solid ${creating ? "rgba(180,140,80,0.15)" : C.border}`,
@@ -106,13 +125,33 @@ function OwnerView({ shares, onCreateShare, onRevokeShare, creating }) {
           {creating ? "Creating link..." : "Create access link →"}
         </button>
         <div style={{ color: C.textMuted, fontSize: 11, marginTop: 10, lineHeight: 1.5 }}>
-          They'll receive a unique link. Entry content is never shared unless you select "Graph + entry excerpts."
+          We'll email them a private link — they don't need an account or a subscription. Entry content is never shared unless you select "Graph + entry excerpts."
+          {atLimit && <span style={{ color: "#e0a070" }}> You've reached the limit of {limit} active links — revoke one to create another.</span>}
         </div>
       </div>
+      ) : (
+        <div style={{
+          padding: "22px 24px", marginBottom: 28,
+          background: C.goldFaint, border: `1px solid ${C.border}`, borderRadius: 4,
+        }}>
+          <div style={{ color: C.gold, fontSize: 14, marginBottom: 8 }}>Sharing is part of the Professional plan</div>
+          <div style={{ color: C.textMuted, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+            Share your graph with a therapist or coach — up to {limit} active links, with optional entry excerpts and a notes layer for them.
+            The people you share with never need an account or a subscription.
+            {shares.length > 0 && " Links you already created keep working until they expire, and you can revoke them any time."}
+          </div>
+          <button onClick={() => requestTrialPrompt(subscribed ? "upgrade_required" : "subscription_required")} style={{
+            padding: "10px 22px", background: C.goldFaint, border: `1px solid ${C.gold}`, borderRadius: 3,
+            color: C.gold, fontSize: 12, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit",
+          }}>
+            {subscribed ? "Upgrade to Professional →" : "Start your free trial →"}
+          </button>
+        </div>
+      )}
 
       {/* Active shares */}
       <div style={{ color: C.goldMuted, fontSize: 11, letterSpacing: "0.12em", marginBottom: 12, textTransform: "uppercase" }}>
-        Active shares ({shares?.length || 0})
+        Active shares ({shares.length}/{limit})
       </div>
       {shares?.length > 0 ? shares.map((s, i) => (
         <div key={s.id} className="sh-row" style={{
@@ -133,9 +172,9 @@ function OwnerView({ shares, onCreateShare, onRevokeShare, creating }) {
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button
-              onClick={() => navigator.clipboard.writeText(s.link)}
+              onClick={() => copyLink(s)}
               style={{ ...smallBtn, color: C.teal }}
-              title="Copy link">⎘ Copy</button>
+              title="Copy link">{copied === s.id ? "✓ Copied" : "⎘ Copy"}</button>
             <button
               onClick={() => onRevokeShare(s.id)}
               style={{ ...smallBtn, color: "rgba(224,112,112,0.7)" }}
@@ -158,12 +197,13 @@ const smallBtn = {
 };
 
 // ── Shared graph viewer (for the therapist/coach) ─────────────────────────────
-function SharedGraphViewer({ shareToken }) {
+export function SharedGraphViewer({ shareToken }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
   const [note,    setNote]    = useState("");
   const [annotations, setAnnotations] = useState([]);
+  const [noteError, setNoteError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -183,20 +223,21 @@ function SharedGraphViewer({ shareToken }) {
   }, [shareToken]);
 
   async function submitNote() {
-    if (!note.trim()) return;
-    const newNote = {
-      id: Date.now(), text: note, created_at: new Date().toISOString(),
-      author: "Viewer",
-    };
+    const text = note.trim();
+    if (!text) return;
+    setNoteError("");
     try {
-      await fetch(`${API}/shared/${shareToken}/annotate`, {
+      const res = await fetch(`${API}/shared/${shareToken}/annotate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: note }),
+        body: JSON.stringify({ text }),
       });
-    } catch {}
-    setAnnotations(a => [...a, newNote]);
-    setNote("");
+      if (!res.ok) throw new Error();
+      setAnnotations(a => [...a, { id: Date.now(), text, created_at: new Date().toISOString() }]);
+      setNote("");
+    } catch {
+      setNoteError("Couldn't save your note — please try again.");
+    }
   }
 
   if (loading) return <Spinner message="Loading shared graph..." />;
@@ -207,7 +248,7 @@ function SharedGraphViewer({ shareToken }) {
     <div style={{ padding: "32px 40px", fontFamily: "'EB Garamond', Georgia, serif", color: C.text, maxWidth: 800 }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ color: C.teal, fontSize: 11, letterSpacing: "0.12em", marginBottom: 6, textTransform: "uppercase" }}>
-          Read-only access · Shared graph
+          {data.role === "annotator" ? "Shared graph · you can add notes" : "Read-only access · Shared graph"}
         </div>
         <div style={{ color: C.gold, fontSize: 22, fontStyle: "italic" }}>
           {data.owner_name}'s thought biography
@@ -257,6 +298,24 @@ function SharedGraphViewer({ shareToken }) {
         )) : <div style={{ color: C.textMuted, fontSize: 13 }}>No active contradictions.</div>}
       </Section>
 
+      {/* Recent entry excerpts (reader_with_entries / annotator) */}
+      {data.recent_excerpts?.length > 0 && (
+        <Section title="Recent entries (excerpts)">
+          {data.recent_excerpts.map((e, i) => (
+            <div key={i} style={{
+              padding: "10px 14px", marginBottom: 6,
+              background: C.surface, border: `1px solid ${C.border}`, borderRadius: 3,
+              fontSize: 13, color: C.text, lineHeight: 1.6,
+            }}>
+              <div>{e.excerpt}{e.excerpt?.length >= 200 ? "…" : ""}</div>
+              <div style={{ color: C.textMuted, fontSize: 11, marginTop: 4 }}>
+                {e.date && new Date(e.date).toLocaleDateString()}{e.tone ? ` · ${e.tone}` : ""}
+              </div>
+            </div>
+          ))}
+        </Section>
+      )}
+
       {/* Annotations */}
       {data.role === "annotator" && (
         <Section title="Your notes">
@@ -295,6 +354,7 @@ function SharedGraphViewer({ shareToken }) {
             }}>
               Add note →
             </button>
+            {noteError && <div style={{ color: "#e07070", fontSize: 12, marginTop: 8 }}>{noteError}</div>}
           </div>
         </Section>
       )}
@@ -313,84 +373,84 @@ function Section({ title, children }) {
   );
 }
 
-// ── Main export: detects if viewing a shared link or managing shares ──────────
+// ── Main export: owner's share management (the public viewer lives in SharedView) ──
 export default function TherapistMode() {
   inject();
-  const [loading, setLoading] = useState(true);
-  const [shares,  setShares]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [shares,   setShares]   = useState([]);
+  const [limit,    setLimit]    = useState(5);
+  const [sub,      setSub]      = useState(null);
   const [creating, setCreating] = useState(false);
-  const [error,   setError]   = useState(null);
-
-  // Check if this is a shared view (URL has /shared/:token)
-  const shareToken = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("share_token")
-    : null;
+  const [error,    setError]    = useState(null);
+  const [notice,   setNotice]   = useState(null);
 
   useEffect(() => {
-    if (shareToken) { setLoading(false); return; }
     (async () => {
       try {
-        const res = await authFetch(`${API}/shares`);
-        if (!res.ok) throw new Error();
-        const d = await res.json();
+        const [sr, pr] = await Promise.all([
+          authFetch(`${API}/shares`),
+          authFetch(`${API}/subscription/status`),
+        ]);
+        if (!sr.ok) throw new Error();
+        const d = await sr.json();
         setShares(d.shares || []);
+        if (d.limit) setLimit(d.limit);
+        if (pr.ok) setSub(await pr.json());
       } catch {
-        setShares(MOCK_SHARES);
+        setError("Couldn't load your shares — please refresh.");
       } finally {
         setLoading(false);
       }
     })();
-  }, [shareToken]);
+  }, []);
 
   async function createShare(params) {
-    setCreating(true); setError(null);
+    setCreating(true); setError(null); setNotice(null);
     try {
       const res = await authFetch(`${API}/shares`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),
       });
-      if (!res.ok) throw new Error("Failed to create share");
-      const d = await res.json();
-      setShares(s => [...s, d.share]);
+      const d = await res.json().catch(() => ({}));
+      // Not on Professional / not subscribed: authFetch already opened the upgrade prompt
+      if (res.status === 402 && ["upgrade_required", "subscription_required", "payment_failed"].includes(d.detail?.reason)) return;
+      if (!res.ok) {
+        throw new Error(typeof d.detail === "string" ? d.detail : d.detail?.message || "Failed to create share");
+      }
+      setShares(s => [d.share, ...s]);
+      setNotice(d.email_sent
+        ? `Private link emailed to ${d.share.email}.`
+        : "Link created, but we couldn't email it — copy it below and send it to them yourself.");
     } catch (e) {
       setError(e.message);
-      // Mock for development
-      setShares(s => [...s, {
-        id: Date.now(), email: params.email, role: params.role,
-        expires_at: new Date(Date.now() + params.expires_in_days * 86400000).toISOString(),
-        link: `${window.location.origin}?share_token=demo-${Date.now()}`,
-        last_viewed: null,
-      }]);
     } finally {
       setCreating(false);
     }
   }
 
   async function revokeShare(shareId) {
+    setError(null);
     try {
-      await authFetch(`${API}/shares/${shareId}`, { method: "DELETE" });
-    } catch {}
-    setShares(s => s.filter(sh => sh.id !== shareId));
+      const res = await authFetch(`${API}/shares/${shareId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setShares(s => s.filter(sh => sh.id !== shareId));
+    } catch {
+      setError("Couldn't revoke that link — please try again.");
+    }
   }
 
   if (loading) return <Spinner message="Loading..." />;
 
-  if (shareToken) return <SharedGraphViewer shareToken={shareToken} />;
-
   return (
     <div>
       {error && <ErrorMessage title="Share error" detail={error} onRetry={() => setError(null)} />}
-      <OwnerView shares={shares} onCreateShare={createShare} onRevokeShare={revokeShare} creating={creating} />
+      <OwnerView
+        shares={shares} limit={limit} notice={notice} creating={creating}
+        subscribed={!!sub?.subscribed}
+        isPro={!!sub?.subscribed && sub?.plan === "professional"}
+        onCreateShare={createShare} onRevokeShare={revokeShare}
+      />
     </div>
   );
 }
-
-const MOCK_SHARES = [
-  {
-    id: 1, email: "dr.chen@example.com", role: "annotator",
-    expires_at: new Date(Date.now() + 25 * 86400000).toISOString(),
-    link: `${typeof window !== "undefined" ? window.location.origin : ""}/shared?token=demo123`,
-    last_viewed: new Date(Date.now() - 2 * 86400000).toISOString(),
-  },
-];

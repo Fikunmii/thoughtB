@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { authFetch } from "../auth/Auth";
-import { PLANS, TRIAL_FINE_PRINT, startCheckout, openBillingPortal } from "./plans";
+import { PLANS, TRIAL_FINE_PRINT, startCheckout, openBillingPortal, upgradeToProfessional } from "./plans";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -42,6 +42,7 @@ export default function TrialGate() {
   if (!gate) return null;
 
   const paymentFailed = gate.reason === "payment_failed";
+  const upgradeNeeded = gate.reason === "upgrade_required";
 
   async function run(key, fn) {
     setBusy(key);
@@ -62,12 +63,14 @@ export default function TrialGate() {
         padding: "28px 26px", fontFamily: "'EB Garamond', Georgia, serif",
       }}>
         <div style={{ color: C.goldMuted, fontSize: 11, letterSpacing: "0.12em", marginBottom: 10 }}>
-          {paymentFailed ? "PAYMENT ISSUE" : eligible ? "START YOUR FREE TRIAL" : "SUBSCRIBE TO CONTINUE"}
+          {paymentFailed ? "PAYMENT ISSUE" : upgradeNeeded ? "PROFESSIONAL FEATURE" : eligible ? "START YOUR FREE TRIAL" : "SUBSCRIBE TO CONTINUE"}
         </div>
         <div style={{ color: C.text, fontSize: 16, lineHeight: 1.5, marginBottom: 20 }}>
           {paymentFailed
             ? (gate.message || "Your last payment didn't go through. Update your card to keep using Thought Biography.")
-            : eligible
+            : upgradeNeeded
+              ? (gate.message || "This is part of the Professional plan.")
+              : eligible
               ? "Start your 14-day free trial to begin journaling."
               : "Subscribe to keep journaling."}
         </div>
@@ -76,6 +79,15 @@ export default function TrialGate() {
           <button disabled={!!busy} onClick={() => run("portal", openBillingPortal)} style={primaryBtn(busy)}>
             {busy === "portal" ? "Opening billing portal…" : "Update payment method"}
           </button>
+        ) : upgradeNeeded ? (
+          <>
+            <button disabled={!!busy} onClick={() => run("upgrade", upgradeToProfessional)} style={primaryBtn(busy)}>
+              {busy === "upgrade" ? "Upgrading…" : "Upgrade to Professional — $49.99/mo"}
+            </button>
+            <div style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.5, margin: "4px 0 14px" }}>
+              Your plan changes immediately, on the card you already added. If you're still in your free trial you won't be charged until it ends.
+            </div>
+          </>
         ) : (
           <>
             {PLANS.map(p => (

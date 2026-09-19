@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { authFetch } from "../auth/Auth";
-import { startCheckout, openBillingPortal } from "../components/plans";
+import { startCheckout, openBillingPortal, upgradeToProfessional } from "../components/plans";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const C = {
@@ -43,6 +43,17 @@ export default function Billing({ user, onNavigate }) {
     setError("");
     try {
       await startCheckout(planKey); // navigates to Stripe on success
+    } catch (e) {
+      setError(e.message);
+      setUpgrading(null);
+    }
+  };
+
+  const handleUpgradePlan = async () => {
+    setUpgrading("professional");
+    setError("");
+    try {
+      await upgradeToProfessional(); // reloads on success
     } catch (e) {
       setError(e.message);
       setUpgrading(null);
@@ -112,6 +123,8 @@ export default function Billing({ user, onNavigate }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
           {PLANS.map(plan => {
             const isCurrent = subscribed && currentPlan === plan.key;
+            const canUpgrade = subscribed && currentPlan === "personal" && plan.key === "professional";
+            const blocked = subscribed && !isCurrent && !canUpgrade;   // e.g. Professional looking at Personal
             const isPopular = plan.popular;
             return (
               <div key={plan.key} style={{
@@ -149,17 +162,25 @@ export default function Billing({ user, onNavigate }) {
                   <div style={{ textAlign: "center", color: C.goldMuted, fontSize: 12, padding: "10px 0", border: `1px solid ${C.border}`, borderRadius: 3 }}>
                     Current plan
                   </div>
+                ) : blocked ? (
+                  <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "10px 0" }}>
+                    Switch plans from "Manage subscription"
+                  </div>
                 ) : (
-                  <button onClick={() => handleUpgrade(plan.key)} disabled={!!upgrading || subscribed} style={{
-                    width: "100%", padding: "11px 0",
-                    background: isPopular ? C.gold : "transparent",
-                    border: `1px solid ${C.gold}`, borderRadius: 3,
-                    color: isPopular ? "#1a1510" : C.gold,
-                    fontSize: 12, letterSpacing: "0.1em", cursor: (upgrading || subscribed) ? "not-allowed" : "pointer",
-                    fontFamily: "'EB Garamond', Georgia, serif",
-                    opacity: subscribed ? 0.5 : 1,
-                  }}>
-                    {upgrading === plan.key ? "Loading…" : (trialEligible ? "Start 14-Day Free Trial" : "Subscribe").toUpperCase()}
+                  <button
+                    onClick={() => canUpgrade ? handleUpgradePlan() : handleUpgrade(plan.key)}
+                    disabled={!!upgrading}
+                    style={{
+                      width: "100%", padding: "11px 0",
+                      background: isPopular ? C.gold : "transparent",
+                      border: `1px solid ${C.gold}`, borderRadius: 3,
+                      color: isPopular ? "#1a1510" : C.gold,
+                      fontSize: 12, letterSpacing: "0.1em", cursor: upgrading ? "not-allowed" : "pointer",
+                      fontFamily: "'EB Garamond', Georgia, serif",
+                    }}>
+                    {upgrading === plan.key
+                      ? "Loading…"
+                      : (canUpgrade ? "Upgrade to Professional" : trialEligible ? "Start 14-Day Free Trial" : "Subscribe").toUpperCase()}
                   </button>
                 )}
               </div>

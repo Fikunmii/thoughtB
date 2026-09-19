@@ -206,6 +206,39 @@ def confirm_checkout(body: dict, current_user: dict = Depends(get_current_user))
     return {"plan": plan_key, "status": sub_status, "subscribed": sub_status in ("trialing", "active")}
 
 
+@router.post("/subscription/upgrade")
+def upgrade_plan(body: dict, current_user: dict = Depends(get_current_user)):
+    """
+    Personal -> Professional on the existing subscription (no second checkout, no second
+    card entry). During a trial nothing is charged until the trial ends; afterwards Stripe
+    prorates. Downgrades and cancellations go through the Stripe customer portal.
+    """
+    if body.get("plan", "professional") != "professional":
+        raise HTTPException(400, "Only upgrades to Professional are handled here — use Manage subscription to change plans.")
+
+    uid    = current_user["user_id"]
+    access = get_access(uid)
+    if not access["has_access"]:
+        raise HTTPException(400, "Start a subscription first.")
+    if access["plan"] == "professional":
+        return {"plan": "professional", "status": access["status"]}
+
+    sub_id = get_user_plan(uid)["sub_id"]
+    if not sub_id:
+        raise HTTPException(400, "No Stripe subscription found on this account.")
+
+    s        = get_stripe()
+    sub      = s.Subscription.retrieve(sub_id)
+    item_id  = sub["items"]["data"][0]["id"]
+    updated  = s.Subscription.modify(
+        sub_id,
+        items=[{"id": item_id, "price": PLANS["professional"]["price_id"]}],
+        proration_behavior="create_prorations",
+    )
+    set_user_plan(uid, "professional", sub_id, updated.status)
+    return {"plan": "professional", "status": updated.status}
+
+
 @router.post("/subscription/portal")
 def customer_portal(current_user: dict = Depends(get_current_user)):
     s           = get_stripe()
@@ -268,7 +301,15 @@ async def stripe_webhook(request: Request):
                 sid=sub_id
             ).single()
             if r:
-                plan = "free" if status == "canceled" else r["plan"]
+                plan = r["plan"]
+                # Plan changes made in the Stripe customer portal arrive as a price swap
+                try:
+                    price_id = data["items"]["data"][0]["price"]["id"]
+                    plan = next((k for k, v in PLANS.items() if v["price_id"] == price_id), plan)
+                except Exception:
+                    pass
+                if status == "canceled":
+                    plan = "free"
                 set_user_plan(r["uid"], plan, sub_id, status)
 
     elif et == "customer.subscription.deleted":

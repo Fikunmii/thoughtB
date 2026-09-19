@@ -53,3 +53,17 @@ export function openBillingPortal() {
 export function requestTrialPrompt(reason = "subscription_required") {
   window.dispatchEvent(new CustomEvent("tb:paywall", { detail: { reason } }));
 }
+
+/** Personal -> Professional on the existing subscription (no second checkout). Reloads on success. */
+export async function upgradeToProfessional() {
+  const res = await authFetch(`${API}/subscription/upgrade`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan: "professional" }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof data.detail === "string" ? data.detail : "Couldn't upgrade — please try again.");
+  }
+  window.location.reload();
+}
