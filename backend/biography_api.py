@@ -251,7 +251,7 @@ async def get_biography_latest(current_user: dict = Depends(get_current_user)):
     return {"text": None, "updated": None, "ready": False, "entry_count": 0, "min_required": 5, "entries_needed": 5}
 
 
-async def generate_biography_stream(current_user: dict = Depends(require_subscription)):
+async def generate_biography_stream(current_user: dict = Depends(get_current_user)):
     """GET /biography/generate — SSE stream of biography generation."""
     uid = current_user["user_id"]
     try:
@@ -445,7 +445,7 @@ def get_biography_history(current_user: dict = Depends(get_current_user)):
     return {"biographies": [{**r, "generated_at": serialize_dt(r.get("generated_at"))} for r in rows]}
 
 
-async def save_biography(body: dict, current_user: dict = Depends(require_subscription)):
+async def save_biography(body: dict, current_user: dict = Depends(get_current_user)):
     """POST /biography/save"""
     uid = current_user["user_id"]
     text = body.get("full_text") or body.get("text") or body.get("stream_text") or ""
@@ -505,3 +505,4 @@ def register_biography_routes(app):
     app.add_api_route("/biography/save",     save_biography,              methods=["POST"])
 
     print("✓ Biography routes registered")
+
