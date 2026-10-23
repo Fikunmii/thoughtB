@@ -274,6 +274,8 @@ async def export_biography(body: dict, current_user: dict = Depends(require_subs
     POST /biography/export
     body: { "full_text": "...", "format": "pdf" | "docx" | "md" }
     """
+    from biography_export import export_pdf, export_docx
+
     full_text = body.get("full_text", "")
     fmt = body.get("format", "md").lower()
     timestamp = datetime.now().strftime("%Y-%m-%d")
@@ -284,110 +286,25 @@ async def export_biography(body: dict, current_user: dict = Depends(require_subs
 
     if fmt == "pdf":
         try:
-            from weasyprint import HTML
-            html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
-  body {{
-    font-family: 'EB Garamond', Georgia, serif;
-    font-size: 13pt;
-    line-height: 1.8;
-    color: #1a1a1a;
-    max-width: 680px;
-    margin: 0 auto;
-    padding: 60px 40px;
-  }}
-  h1 {{ font-size: 22pt; font-weight: normal; font-style: italic; margin-bottom: 8px; }}
-  h2 {{ font-size: 15pt; font-weight: normal; font-style: italic; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 6px; margin-top: 40px; }}
-  p {{ margin: 0 0 14px 0; text-align: justify; }}
-  hr {{ border: none; border-top: 1px solid #ddd; margin: 32px 0; }}
-  .meta {{ color: #888; font-size: 11pt; margin-bottom: 40px; }}
-  strong {{ font-weight: 500; }}
-</style>
-</head>
-<body>
-{_md_to_html(full_content)}
-</body>
-</html>"""
-            pdf_bytes = HTML(string=html_content).write_pdf()
+            pdf_bytes = export_pdf(full_content, display_name, timestamp)
             return Response(
                 content=pdf_bytes,
                 media_type="application/pdf",
                 headers={"Content-Disposition": f'attachment; filename="thought-biography-{timestamp}.pdf"'},
             )
-        except ImportError:
-            # Fall back to md if weasyprint not installed
-            fmt = "md"
+        except Exception as e:
+            return JSONResponse({"error": f"PDF export failed: {str(e)}"}, status_code=500)
 
     if fmt == "docx":
         try:
-            from docx import Document
-            from docx.shared import Pt, Inches
-            from docx.enum.text import WD_ALIGN_PARAGRAPH
-            import io
-
-            doc = Document()
-
-            # Page margins
-            for section in doc.sections:
-                section.top_margin = Inches(1.2)
-                section.bottom_margin = Inches(1.2)
-                section.left_margin = Inches(1.3)
-                section.right_margin = Inches(1.3)
-
-            # Title
-            title = doc.add_heading("Thought Biography", 0)
-            title.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            for run in title.runs:
-                run.font.size = Pt(22)
-                run.font.name = "Georgia"
-
-            meta = doc.add_paragraph(f"{display_name} · {datetime.now().strftime('%B %Y')}")
-            meta.runs[0].font.size = Pt(11)
-            meta.runs[0].font.color.rgb = None  # grey
-
-            doc.add_paragraph("")  # spacer
-
-            # Parse and add content
-            for line in full_content.split("\n"):
-                line = line.strip()
-                if not line or line == "---":
-                    if line == "---":
-                        doc.add_paragraph("─" * 20)
-                    continue
-                if line.startswith("# "):
-                    continue  # already added as title
-                elif line.startswith("## "):
-                    h = doc.add_heading(line[3:], level=2)
-                    for run in h.runs:
-                        run.font.name = "Georgia"
-                        run.font.size = Pt(14)
-                elif line.startswith("**") and line.endswith("**"):
-                    p = doc.add_paragraph()
-                    run = p.add_run(line[2:-2])
-                    run.bold = True
-                    run.font.name = "Georgia"
-                    run.font.size = Pt(12)
-                else:
-                    p = doc.add_paragraph(line)
-                    p.runs[0].font.name = "Georgia" if p.runs else None
-                    if p.runs:
-                        p.runs[0].font.size = Pt(12)
-
-            buf = io.BytesIO()
-            doc.save(buf)
-            buf.seek(0)
+            docx_bytes = export_docx(full_content, display_name, timestamp)
             return Response(
-                content=buf.read(),
+                content=docx_bytes,
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 headers={"Content-Disposition": f'attachment; filename="thought-biography-{timestamp}.docx"'},
             )
-        except ImportError:
-            fmt = "md"
+        except Exception as e:
+            return JSONResponse({"error": f"DOCX export failed: {str(e)}"}, status_code=500)
 
     # Default: markdown
     return Response(
@@ -395,25 +312,6 @@ async def export_biography(body: dict, current_user: dict = Depends(require_subs
         media_type="text/markdown",
         headers={"Content-Disposition": f'attachment; filename="thought-biography-{timestamp}.md"'},
     )
-
-
-def _md_to_html(md: str) -> str:
-    """Very simple markdown-to-HTML for PDF export."""
-    lines = []
-    for line in md.split("\n"):
-        if line.startswith("# "):
-            lines.append(f"<h1>{line[2:]}</h1>")
-        elif line.startswith("## "):
-            lines.append(f"<h2>{line[3:]}</h2>")
-        elif line.startswith("---"):
-            lines.append("<hr>")
-        elif line.startswith("**") and line.endswith("**"):
-            lines.append(f"<strong>{line[2:-2]}</strong>")
-        elif line.strip() == "":
-            lines.append("")
-        else:
-            lines.append(f"<p>{line}</p>")
-    return "\n".join(lines)
 
 
 def get_biography_history(current_user: dict = Depends(get_current_user)):
