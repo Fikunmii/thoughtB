@@ -6,7 +6,10 @@ import os
 import json
 import re
 import asyncio
+import logging
 from datetime import datetime, timezone
+
+logging.getLogger("neo4j.notifications").setLevel(logging.ERROR)
 from fastapi import FastAPI, Depends
 from auth import get_current_user, require_subscription
 from fastapi.responses import StreamingResponse, JSONResponse, Response

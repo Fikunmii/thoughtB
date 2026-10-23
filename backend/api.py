@@ -29,7 +29,11 @@ from neo4j import GraphDatabase
 import os
 import uuid
 import json
+import logging
 from datetime import datetime
+
+# Suppress neo4j "property/relationship does not exist" notification spam
+logging.getLogger("neo4j.notifications").setLevel(logging.ERROR)
 
 def serialize_dt(val):
     """Convert Neo4j DateTime or string to clean ISO format JS can parse."""
@@ -59,8 +63,6 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "yourpassword")
 driver     = GraphDatabase.driver(
     NEO4J_URI,
     auth=(NEO4J_USER, NEO4J_PASSWORD),
-    notifications_disabled_categories=["UNRECOGNIZED"],
-    notifications_min_severity="WARNING",
 )
 
 claude = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
