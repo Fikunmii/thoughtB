@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { authFetch } from "../auth/Auth";
+import { authFetch, AuthStorage } from "../auth/Auth";
 import { useIsMobile } from "../hooks/useIsMobile";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -299,11 +299,35 @@ export default function BiographyDocument({ user, onNavigate }) {
     setStatus("Analysing your journal…");
 
     try {
-      const token = localStorage.getItem("tb_access_token") || "";
+      let token = AuthStorage.getAccess() || "";
       const qs = new URLSearchParams({ style: params.style || "literary" });
-      const res = await fetch(`${API}/biography/stream?${qs}`, {
+      let res = await fetch(`${API}/biography/stream?${qs}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      // If token expired, try refresh once (mirrors authFetch behaviour)
+      if (res.status === 401) {
+        const refreshToken = AuthStorage.getRefresh();
+        if (refreshToken) {
+          const refreshRes = await fetch(`${API}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: refreshToken }),
+          });
+          if (refreshRes.ok) {
+            const data = await refreshRes.json();
+            AuthStorage.save({ access_token: data.access_token, refresh_token: data.refresh_token }, data.user);
+            token = data.access_token;
+            res = await fetch(`${API}/biography/stream?${qs}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+          } else {
+            AuthStorage.clear();
+            window.location.reload();
+            return;
+          }
+        }
+      }
 
       if (!res.ok || !res.body) throw new Error(`Server error: ${res.status}`);
 

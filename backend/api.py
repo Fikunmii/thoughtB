@@ -58,7 +58,9 @@ NEO4J_USER = os.getenv("NEO4J_USER",     "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "yourpassword")
 driver     = GraphDatabase.driver(
     NEO4J_URI,
-    auth=(NEO4J_USER, NEO4J_PASSWORD)
+    auth=(NEO4J_USER, NEO4J_PASSWORD),
+    notifications_disabled_categories=["UNRECOGNIZED"],
+    notifications_min_severity="WARNING",
 )
 
 claude = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
