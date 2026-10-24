@@ -26,7 +26,14 @@ import { startCheckout }        from "./components/plans";
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Import the full App shell with all views
-import App from "./App";
+import App          from "./App";
+import CapturePage  from "./views/CapturePage";
+
+// /capture — fast-entry page when launched from home screen icon
+// Must be checked before any auth/scene logic so it works immediately on tap
+function isCaptureRoute() {
+  return window.location.pathname === "/capture";
+}
 
 function returnedSessionId() {
   const p = new URLSearchParams(window.location.search);
@@ -43,6 +50,13 @@ function nextScene() {
 
 export default function Root() {
   const [scene, setScene] = useState(() => {
+    // /capture — launched from home screen icon. If logged in, show capture page.
+    // If not logged in, fall through to auth then return to capture.
+    if (isCaptureRoute()) {
+      if (AuthStorage.isLoggedIn()) return "capture";
+      sessionStorage.setItem("tb_post_auth_route", "/capture");
+      return "auth";
+    }
     // A share link is a public page: therapists/coaches never see the marketing site or a login
     if (shareTokenFromUrl()) return "shared";
     // Determine initial scene from stored state
@@ -93,16 +107,22 @@ export default function Root() {
 
   function handleAuthenticated(u, mode) {
     setUser(u);
+
+    // If launched from /capture and not logged in, go back to capture after auth
+    const postAuthRoute = sessionStorage.getItem("tb_post_auth_route");
+    if (postAuthRoute === "/capture" && mode === "login") {
+      sessionStorage.removeItem("tb_post_auth_route");
+      setScene("capture");
+      return;
+    }
+
     if (pendingPlan) {
-      // They already picked a plan from a landing-page pricing card —
-      // skip the picker and go straight to Stripe checkout for it.
       const plan = pendingPlan;
       setPendingPlan(null);
       startCheckout(plan).catch(() => setScene(mode === "register" ? "plan" : nextScene()));
       return;
     }
     if (mode === "register") {
-      // Brand new account — the trial is the only way in, so offer it before the app.
       setScene("plan");
       return;
     }
@@ -133,7 +153,12 @@ export default function Root() {
   // <TrialGate /> is mounted for every scene: any 402 from the API (a write or AI
   // call without a subscription) opens the "start your free trial" prompt.
   let content;
-  if (scene === "shared") {
+  if (scene === "capture") {
+    content = <CapturePage onOpenApp={() => {
+      window.history.pushState({}, "", "/");
+      setScene(nextScene());
+    }} />;
+  } else if (scene === "shared") {
     content = <SharedView shareToken={shareTokenFromUrl()} />;
   } else if (scene === "landing") {
     content = <LandingPage onGetStarted={handleGetStarted} onSignIn={handleSignIn} />;

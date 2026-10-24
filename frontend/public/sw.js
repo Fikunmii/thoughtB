@@ -20,7 +20,7 @@
  *     Fonts don't change. Cache forever.
  */
 
-const CACHE_VERSION   = "tb-v2";
+const CACHE_VERSION   = "tb-v3";
 const SHELL_CACHE     = `${CACHE_VERSION}-shell`;
 const API_CACHE       = `${CACHE_VERSION}-api`;
 const FONT_CACHE      = `${CACHE_VERSION}-fonts`;
@@ -28,6 +28,7 @@ const FONT_CACHE      = `${CACHE_VERSION}-fonts`;
 // App shell assets to pre-cache on install
 const SHELL_ASSETS = [
   "/",
+  "/capture",
   "/index.html",
   "/manifest.json",
   "/icons/icon-192.png",
