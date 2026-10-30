@@ -39,6 +39,16 @@
     }
   ],
 
+  "share_target": {
+    "action": "/capture",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text":  "text",
+      "url":   "url"
+    }
+  },
+
   "screenshots": [
     {
       "src": "/screenshots/journal.png",

@@ -22,6 +22,21 @@ export default function CapturePage({ onOpenApp }) {
   const [isOnline,  setIsOnline]  = useState(navigator.onLine);
   const textareaRef = useRef(null);
 
+  // Web Share Target — read ?title=&text=&url= injected by the OS share sheet
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shared = [params.get("title"), params.get("text"), params.get("url")]
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+    if (shared) {
+      setText(shared);
+      setCharCount(shared.length);
+      // Clean the URL so a refresh doesn't re-populate
+      window.history.replaceState({}, "", "/capture");
+    }
+  }, []);
+
   // Focus textarea immediately on mount — zero friction
   useEffect(() => {
     textareaRef.current?.focus();
