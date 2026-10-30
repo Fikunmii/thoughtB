@@ -1,5 +1,5 @@
 """
-biography_export.py — PDF and DOCX export for Thought Biography
+biography_export.py PDF and DOCX export for Thought Biography
 """
 import io
 import re
