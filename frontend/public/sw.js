@@ -20,7 +20,7 @@
  *     Fonts don't change. Cache forever.
  */
 
-const CACHE_VERSION   = "tb-v3";
+const CACHE_VERSION   = "tb-v4";
 const SHELL_CACHE     = `${CACHE_VERSION}-shell`;
 const API_CACHE       = `${CACHE_VERSION}-api`;
 const FONT_CACHE      = `${CACHE_VERSION}-fonts`;
@@ -36,9 +36,12 @@ const SHELL_ASSETS = [
 ];
 
 // API origin — matches VITE_API_URL
-const API_ORIGIN = self.location.origin.includes("localhost")
-  ? "http://localhost:8000"
-  : "https://thoughtb-production.up.railway.app";
+// API_ORIGIN — reads the baked-in env var; falls back to Railway URL
+const API_ORIGIN = (typeof __VITE_API_URL__ !== "undefined" && __VITE_API_URL__)
+  ? __VITE_API_URL__
+  : self.location.origin.includes("localhost")
+    ? "http://localhost:8000"
+    : "https://bacckend-production.up.railway.app";
 
 // Routes that should never be cached (writes, streams, auth)
 const NEVER_CACHE = [
