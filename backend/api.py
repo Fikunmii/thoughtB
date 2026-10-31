@@ -220,17 +220,7 @@ except Exception as e:
 if TRANSCRIBE_AVAILABLE:
     app.include_router(transcribe_router)
 
-try:
-    from email_inbound import register_email_routes
-    register_email_routes(
-        app, driver,
-        extract_fn=extract_with_claude,
-        write_fn=write_extraction_to_graph,
-        posthog=_posthog,
-    )
-    print("✓ email inbound routes registered")
-except Exception as e:
-    print(f"⚠ email_inbound not loaded: {e}")
+# email_inbound registered below after extract_with_claude / write_extraction_to_graph are defined
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1094,6 +1084,24 @@ def write_extraction_to_graph(user_id: str, entry_id: str, extraction: dict):
                 MERGE (e)-[:OCCURRED_DURING]->(lc)
             """, label=extraction["life_context_hint"],
                  uid=user_id, lid=str(uuid.uuid4()), eid=entry_id)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EMAIL INBOUND (registered here so extract_with_claude / write_extraction_to_graph are in scope)
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    from email_inbound import register_email_routes
+    register_email_routes(
+        app, driver,
+        extract_fn=extract_with_claude,
+        write_fn=write_extraction_to_graph,
+        posthog=_posthog,
+    )
+    print("✓ email inbound routes registered")
+except Exception as e:
+    import traceback
+    print(f"⚠ email_inbound not loaded: {e}")
+    traceback.print_exc()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
