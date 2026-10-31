@@ -165,6 +165,12 @@ def require_professional(current_user: dict = Depends(require_subscription)) -> 
 # ── Neo4j user helpers ────────────────────────────────────────────────────────
 def create_user_node(user_id: str, email: str, display_name: str, hashed_pw: str):
     """Create a User node. All graph data for this user will link to this node."""
+    import hashlib, re, os
+    email_domain = os.getenv("EMAIL_FROM_DOMAIN", "in.thoughtbiography.site")
+    slug_base = re.sub(r"[^a-z0-9]", "", display_name.lower())[:10] or "user"
+    suffix = hashlib.md5(user_id.encode()).hexdigest()[:4]
+    inbound_email = f"{slug_base}-{suffix}@{email_domain}"
+
     with driver.session() as session:
         session.run("""
             CREATE (u:User {
@@ -173,10 +179,11 @@ def create_user_node(user_id: str, email: str, display_name: str, hashed_pw: str
                 display_name: $display_name,
                 password_hash: $pw,
                 created_at: datetime(),
-                encryption_key_hint: $key_hint
+                encryption_key_hint: $key_hint,
+                inbound_email: $inbound_email
             })
         """, id=user_id, email=email, display_name=display_name,
-             pw=hashed_pw, key_hint="")
+             pw=hashed_pw, key_hint="", inbound_email=inbound_email)
 
 def get_user_by_email(email: str) -> dict | None:
     with driver.session() as session:

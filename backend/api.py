@@ -220,6 +220,18 @@ except Exception as e:
 if TRANSCRIBE_AVAILABLE:
     app.include_router(transcribe_router)
 
+try:
+    from email_inbound import register_email_routes
+    register_email_routes(
+        app, driver,
+        extract_fn=extract_with_claude,
+        write_fn=write_extraction_to_graph,
+        posthog=_posthog,
+    )
+    print("✓ email inbound routes registered")
+except Exception as e:
+    print(f"⚠ email_inbound not loaded: {e}")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HEALTH
