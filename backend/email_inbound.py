@@ -432,12 +432,22 @@ def get_inbound_address(request: Request):
     # Look up display_name from Neo4j
     with _driver.session() as s:
         r = s.run("MATCH (u:User {id: $uid}) RETURN u.display_name AS name, u.inbound_email AS addr", uid=uid).single()
+        logger.info(f"[email/address] uid={uid} row={dict(r) if r else None}")
         if r and r["addr"]:
             return {"inbound_email": r["addr"]}
         display_name = (r["name"] if r else None) or current_user.get("email", "user")
+        logger.info(f"[email/address] no addr yet, generating for display_name={display_name}")
 
     addr = ensure_user_inbound_address(uid, display_name)
     return {"inbound_email": addr}
+
+
+@router.get("/debug")
+def debug_email(request: Request):
+    """Unauthenticated debug — shows what users have inbound addresses. Remove in prod."""
+    with _driver.session() as s:
+        rows = s.run("MATCH (u:User) RETURN u.id AS id, u.email AS email, u.display_name AS name, u.inbound_email AS addr").data()
+    return {"users": rows, "email_domain": EMAIL_DOMAIN}
 
 
 # ── Registration hook called from api.py ──────────────────────────────────────
