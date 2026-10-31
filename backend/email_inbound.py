@@ -421,20 +421,22 @@ def _process_email_entry(
 
 @router.get("/address")
 def get_inbound_address(request: Request):
-    """Return the user's personal inbound email address (creates it if missing).
-    Auth is handled via the auth module injected at registration time."""
-    from auth import get_current_user
-    from fastapi import Depends
-    # Called directly — we pull user from Authorization header
+    """Return the user's personal inbound email address (creates it if missing)."""
+    from auth import decode_token
     token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    from auth import decode_token
     current_user = decode_token(token)
-    addr = ensure_user_inbound_address(
-        current_user["user_id"],
-        current_user.get("display_name", current_user.get("email", "user")),
-    )
+    uid = current_user["user_id"]
+
+    # Look up display_name from Neo4j
+    with _driver.session() as s:
+        r = s.run("MATCH (u:User {id: $uid}) RETURN u.display_name AS name, u.inbound_email AS addr", uid=uid).single()
+        if r and r["addr"]:
+            return {"inbound_email": r["addr"]}
+        display_name = (r["name"] if r else None) or current_user.get("email", "user")
+
+    addr = ensure_user_inbound_address(uid, display_name)
     return {"inbound_email": addr}
 
 
