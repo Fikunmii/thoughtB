@@ -2,7 +2,7 @@
 email_inbound.py — Postmark inbound email capture for ThoughtB
 
 Flow:
-  1. User's personal address (e.g. fikun-a3f9@in.thoughtbiography.site) receives an email
+  1. User's personal address (e.g. fikun-a3f9@in.thoughtbio.site) receives an email
   2. Postmark POSTs parsed JSON to POST /email/inbound
   3. We verify the sender matches the owner, strip quoted replies, extract people/sources
   4. Run through the normal create_entry pipeline
@@ -11,7 +11,7 @@ Flow:
 Env vars required:
   POSTMARK_SERVER_TOKEN  — from Postmark dashboard (for sending confirmation replies)
   POSTMARK_INBOUND_TOKEN — from Postmark (used to verify webhook if you enable signature)
-  EMAIL_FROM_DOMAIN      — e.g. "in.thoughtbiography.site"
+  EMAIL_FROM_DOMAIN      — e.g. "in.thoughtbio.site"
 """
 
 import os
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/email", tags=["email"])
 
 # ── Config ────────────────────────────────────────────────────────────────────
 POSTMARK_TOKEN   = os.getenv("POSTMARK_SERVER_TOKEN", "")
-EMAIL_DOMAIN     = os.getenv("EMAIL_FROM_DOMAIN", "in.thoughtbiography.site")
+EMAIL_DOMAIN     = os.getenv("EMAIL_FROM_DOMAIN", "in.thoughtbio.site")
 CONFIRM_FROM     = os.getenv("POSTMARK_FROM_ADDRESS", f"journal@{EMAIL_DOMAIN}")
 
 # ── Neo4j driver (shared from api.py) ─────────────────────────────────────────
