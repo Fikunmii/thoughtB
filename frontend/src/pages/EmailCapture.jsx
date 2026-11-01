@@ -17,13 +17,17 @@ export default function EmailCapture({ token, navigate }) {
     fetch(`${API}/email/address`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`Server error ${r.status}`);
+        return r.json();
+      })
       .then(d => {
         setAddress(d.inbound_email || null);
+        if (!d.inbound_email) setError("Address not generated yet — try refreshing.");
         setLoading(false);
       })
       .catch(e => {
-        setError("Could not load your address. Try refreshing.");
+        setError(`Could not load your address: ${e.message}. Try refreshing.`);
         setLoading(false);
       });
   }, [token]);
@@ -64,6 +68,11 @@ export default function EmailCapture({ token, navigate }) {
         )}
         {error && (
           <div style={{ color: "#e55", fontSize: 14 }}>{error}</div>
+        )}
+        {!loading && !error && !address && (
+          <div style={{ color: "var(--text-muted, #888)", fontSize: 14 }}>
+            Generating your address… if it doesn't appear, please refresh the page.
+          </div>
         )}
         {!loading && !error && address && (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

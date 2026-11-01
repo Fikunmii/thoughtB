@@ -426,19 +426,42 @@ def get_inbound_address(request: Request):
     token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    current_user = decode_token(token)
-    uid = current_user["user_id"]
+    try:
+        current_user = decode_token(token)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
 
-    # Look up display_name from Neo4j
-    with _driver.session() as s:
-        r = s.run("MATCH (u:User {id: $uid}) RETURN u.display_name AS name, u.inbound_email AS addr", uid=uid).single()
-        logger.info(f"[email/address] uid={uid} row={dict(r) if r else None}")
-        if r and r["addr"]:
-            return {"inbound_email": r["addr"]}
-        display_name = (r["name"] if r else None) or current_user.get("email", "user")
-        logger.info(f"[email/address] no addr yet, generating for display_name={display_name}")
+    uid = current_user.get("user_id") or current_user.get("sub")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Token missing user_id")
 
-    addr = ensure_user_inbound_address(uid, display_name)
+    # Look up display_name and existing address from Neo4j
+    try:
+        with _driver.session() as s:
+            r = s.run(
+                "MATCH (u:User {id: $uid}) RETURN u.display_name AS name, u.inbound_email AS addr, u.email AS email",
+                uid=uid
+            ).single()
+            logger.info(f"[email/address] uid={uid} row={dict(r) if r else None}")
+            if r and r["addr"]:
+                return {"inbound_email": r["addr"]}
+            # Derive display_name: prefer stored name, then stored email, then token email
+            display_name = (
+                (r["name"] if r else None)
+                or (r["email"] if r else None)
+                or current_user.get("email", "user")
+            )
+            logger.info(f"[email/address] generating for uid={uid} display_name={display_name}")
+    except Exception as e:
+        logger.error(f"[email/address] Neo4j error: {e}")
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    try:
+        addr = ensure_user_inbound_address(uid, display_name)
+    except Exception as e:
+        logger.error(f"[email/address] address generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Could not generate address: {e}")
+
     return {"inbound_email": addr}
 
 
