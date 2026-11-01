@@ -24,7 +24,7 @@ import requests
 from datetime import datetime
 from email.utils import parseaddr, getaddresses
 
-from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Request, HTTPException, BackgroundTasks, Depends
 from neo4j import GraphDatabase
 
 logger = logging.getLogger(__name__)
