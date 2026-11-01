@@ -29,7 +29,7 @@ export default function EmailCapture({ user, onNavigate }) {
         setError(`Could not load your address: ${e.message}. Try refreshing.`);
         setLoading(false);
       });
-  }, [token]);
+  }, []);
 
   const copy = () => {
     if (!address) return;
