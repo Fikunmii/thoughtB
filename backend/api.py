@@ -1096,7 +1096,6 @@ try:
         extract_fn=extract_with_claude,
         write_fn=write_extraction_to_graph,
         posthog=_posthog,
-        get_current_user=get_current_user,
     )
     print("✓ email inbound routes registered")
 except Exception as e:
