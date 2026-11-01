@@ -42,6 +42,7 @@ _driver = None
 _extract_fn = None
 _write_fn = None
 _posthog = None
+_get_current_user = None  # set during register_email_routes
 
 
 # ── Address generation ────────────────────────────────────────────────────────
@@ -420,20 +421,9 @@ def _process_email_entry(
 # ── Settings endpoint: get/reveal the user's inbound address ─────────────────
 
 @router.get("/address")
-def get_inbound_address(request: Request):
+def get_inbound_address(current_user: dict = Depends(_get_current_user)):
     """Return the user's personal inbound email address (creates it if missing)."""
-    from auth import decode_token
-    token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        current_user = decode_token(token)
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
-
-    uid = current_user.get("user_id") or current_user.get("sub")
-    if not uid:
-        raise HTTPException(status_code=401, detail="Token missing user_id")
+    uid = current_user["user_id"]
 
     # Look up display_name and existing address from Neo4j
     try:
@@ -445,7 +435,6 @@ def get_inbound_address(request: Request):
             logger.info(f"[email/address] uid={uid} row={dict(r) if r else None}")
             if r and r["addr"]:
                 return {"inbound_email": r["addr"]}
-            # Derive display_name: prefer stored name, then stored email, then token email
             display_name = (
                 (r["name"] if r else None)
                 or (r["email"] if r else None)
@@ -475,10 +464,11 @@ def debug_email(request: Request):
 
 # ── Registration hook called from api.py ──────────────────────────────────────
 
-def register_email_routes(app, driver, extract_fn, write_fn, posthog=None):
-    global _driver, _extract_fn, _write_fn, _posthog
-    _driver     = driver
-    _extract_fn = extract_fn
-    _write_fn   = write_fn
-    _posthog    = posthog
+def register_email_routes(app, driver, extract_fn, write_fn, posthog=None, get_current_user=None):
+    global _driver, _extract_fn, _write_fn, _posthog, _get_current_user
+    _driver           = driver
+    _extract_fn       = extract_fn
+    _write_fn         = write_fn
+    _posthog          = posthog
+    _get_current_user = get_current_user
     app.include_router(router)
