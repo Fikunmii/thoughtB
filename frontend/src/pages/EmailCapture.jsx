@@ -4,19 +4,18 @@
  * Shows the user their personal ThoughtB email address and setup instructions.
  */
 import { useState, useEffect } from "react";
+import { authFetch } from "../auth/Auth";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-export default function EmailCapture({ token, navigate }) {
+export default function EmailCapture({ user, onNavigate }) {
   const [address, setAddress]   = useState(null);
   const [copied, setCopied]     = useState(false);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
 
   useEffect(() => {
-    fetch(`${API}/email/address`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    authFetch(`${API}/email/address`)
       .then(r => {
         if (!r.ok) throw new Error(`Server error ${r.status}`);
         return r.json();
