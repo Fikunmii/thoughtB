@@ -428,7 +428,7 @@ def get_inbound_address(request: Request):
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     current_user = decode_token(token)
-    uid = current_user["user_id"]
+    uid = current_user.get("user_id") or current_user.get("sub")
 
     # Look up display_name and existing address from Neo4j
     try:
