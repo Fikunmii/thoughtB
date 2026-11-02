@@ -170,14 +170,21 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
+_frontend_url = os.getenv("FRONTEND_URL", "").strip().strip('"').rstrip("/")
+_extra_origins = [o.strip() for o in os.getenv("EXTRA_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
-        os.getenv("FRONTEND_URL", ""),
+        "https://thoughtbiography.site",
+        "https://www.thoughtbiography.site",
+        "https://tbfrontend.netlify.app",
+        _frontend_url,
+        *_extra_origins,
     ],
-    allow_origin_regex=r"https://.*\.up\.railway\.app",
+    allow_origin_regex=r"https://(.*\.up\.railway\.app|.*\.netlify\.app|.*\.thoughtbiography\.site)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
