@@ -38,8 +38,10 @@ async function redirectTo(req, key, errorMessage) {
 }
 
 /** Send the user to Stripe Checkout (trial + card entry) for the given plan. */
-export function startCheckout(planKey) {
-  return redirectTo({ url: "/subscription/checkout", body: { plan: planKey } }, "checkout_url",
+export function startCheckout(planKey, seats = 3) {
+  const body = { plan: planKey };
+  if (planKey === "team") body.seats = Math.max(3, Number(seats) || 3);
+  return redirectTo({ url: "/subscription/checkout", body }, "checkout_url",
     "Couldn't start checkout — please try again.");
 }
 

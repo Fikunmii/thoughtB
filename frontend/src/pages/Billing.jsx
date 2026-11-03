@@ -43,12 +43,13 @@ export default function Billing({ user, onNavigate }) {
   }, []);
 
   const [error, setError] = useState("");
+  const [teamSeats, setTeamSeats] = useState(3);
 
   const handleUpgrade = async (planKey) => {
     setUpgrading(planKey);
     setError("");
     try {
-      await startCheckout(planKey); // navigates to Stripe on success
+      await startCheckout(planKey, planKey === "team" ? teamSeats : 3); // navigates to Stripe on success
     } catch (e) {
       setError(e.message);
       setUpgrading(null);
@@ -158,6 +159,15 @@ export default function Billing({ user, onNavigate }) {
                   <div style={{ color: C.goldMuted, fontSize: 11, marginBottom: 20 }}>{plan.trial}</div>
                 )}
                 <div style={{ marginBottom: 24 }}>
+                  {plan.key === "team" && (
+                    <div style={{ margin:"0 0 16px", display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ fontSize:12, color:"#888" }}>Seats:</span>
+                      <button onClick={() => setTeamSeats(s => Math.max(3, s-1))} style={{ width:24, height:24, borderRadius:4, border:"1px solid #333", background:"#111", color:"#e8d5a3", cursor:"pointer", fontSize:14 }}>−</button>
+                      <span style={{ fontSize:14, color:"#e8d5a3", minWidth:20, textAlign:"center" }}>{teamSeats}</span>
+                      <button onClick={() => setTeamSeats(s => s+1)} style={{ width:24, height:24, borderRadius:4, border:"1px solid #333", background:"#111", color:"#e8d5a3", cursor:"pointer", fontSize:14 }}>+</button>
+                      <span style={{ fontSize:12, color:"#888" }}>= ${(29 * teamSeats).toFixed(2)}/mo</span>
+                    </div>
+                  )}
                   {plan.features.map((f, i) => (
                     <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, color: C.text, fontSize: 13 }}>
                       <span style={{ color: C.gold }}>✦</span> {f}

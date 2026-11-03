@@ -48,7 +48,7 @@ import anthropic
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, Header
 from pydantic import BaseModel
 
-from auth import get_current_user, require_subscription, driver
+from auth import get_current_user, require_subscription, require_team, driver
 from api import serialize_dt
 
 router = APIRouter()
@@ -117,7 +117,7 @@ class ChangeRoleRequest(BaseModel):
 @router.post("/teams")
 def create_workspace(
     req: CreateWorkspaceRequest,
-    current_user: dict = Depends(require_subscription),
+    current_user: dict = Depends(require_team),
 ):
     user_id = current_user["user_id"]
     wid = str(uuid.uuid4())

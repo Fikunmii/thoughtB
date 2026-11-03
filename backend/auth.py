@@ -104,7 +104,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer)
 # The 14-day Stripe trial (card required) is the only way in. Without a trialing
 # or active Personal/Professional subscription an account is read-only: every
 # endpoint that creates data or calls an AI model depends on require_subscription.
-_PAID_PLANS      = ("personal", "professional")
+_PAID_PLANS      = ("personal", "professional", "team")
 _ACTIVE_STATUSES = ("trialing", "active")
 _ACCESS_TTL      = 15  # seconds — keeps the gate off Neo4j on every request
 _access_cache: dict = {}
@@ -159,6 +159,17 @@ def require_professional(current_user: dict = Depends(require_subscription)) -> 
     raise HTTPException(status_code=402, detail={
         "reason": "upgrade_required",
         "message": "Sharing your graph with a therapist or coach is part of the Professional plan.",
+    })
+
+
+def require_team(current_user: dict = Depends(require_subscription)) -> dict:
+    """Team-only features (shared workspace, Ask the Org, Auto-ADR, etc.)"""
+    plan = get_access(current_user["user_id"])["plan"]
+    if plan == "team":
+        return current_user
+    raise HTTPException(status_code=402, detail={
+        "reason": "team_required",
+        "message": "This feature is part of the Team plan ($29/seat/month). Upgrade to unlock shared workspaces, Auto-ADR, and Ask the Org.",
     })
 
 

@@ -223,15 +223,16 @@ def upgrade_plan(body: dict, current_user: dict = Depends(get_current_user)):
     card entry). During a trial nothing is charged until the trial ends; afterwards Stripe
     prorates. Downgrades and cancellations go through the Stripe customer portal.
     """
-    if body.get("plan", "professional") != "professional":
-        raise HTTPException(400, "Only upgrades to Professional are handled here — use Manage subscription to change plans.")
+    target_plan = body.get("plan", "professional")
+    if target_plan not in ("professional", "team"):
+        raise HTTPException(400, "Only upgrades to Professional or Team are handled here — use Manage subscription to change plans.")
 
     uid    = current_user["user_id"]
     access = get_access(uid)
     if not access["has_access"]:
         raise HTTPException(400, "Start a subscription first.")
-    if access["plan"] == "professional":
-        return {"plan": "professional", "status": access["status"]}
+    if access["plan"] == target_plan:
+        return {"plan": target_plan, "status": access["status"]}
 
     sub_id = get_user_plan(uid)["sub_id"]
     if not sub_id:
@@ -240,13 +241,16 @@ def upgrade_plan(body: dict, current_user: dict = Depends(get_current_user)):
     s        = get_stripe()
     sub      = s.Subscription.retrieve(sub_id)
     item_id  = sub["items"]["data"][0]["id"]
+    new_price = PLANS[target_plan]["price_id"]
+    if not new_price:
+        raise HTTPException(400, f"{target_plan} plan price ID not configured")
     updated  = s.Subscription.modify(
         sub_id,
-        items=[{"id": item_id, "price": PLANS["professional"]["price_id"]}],
+        items=[{"id": item_id, "price": new_price}],
         proration_behavior="create_prorations",
     )
-    set_user_plan(uid, "professional", sub_id, updated.status)
-    return {"plan": "professional", "status": updated.status}
+    set_user_plan(uid, target_plan, sub_id, updated.status)
+    return {"plan": target_plan, "status": updated.status}
 
 
 @router.post("/subscription/portal")
