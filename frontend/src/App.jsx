@@ -20,6 +20,8 @@ import DigestSettings       from "./pages/DigestSettings";
 import ImportHistory        from "./pages/ImportHistory";
 import EmailCapture       from "./pages/EmailCapture";
 import Billing              from "./pages/Billing";
+import TeamWorkspace        from "./pages/TeamWorkspace";
+import JoinTeam             from "./pages/JoinTeam";
 import { requestTrialPrompt } from "./components/plans";
 import ChatPage              from "./pages/ChatPage";
 
@@ -42,6 +44,7 @@ const NAV = [
   { id: "export",        label: "Export",          icon: "↗",  shortcut: "E", group: "tools"    },
   { id: "share",         label: "Shared Access",   icon: "⊕",  shortcut: null, group: "tools"   },
   { id: "email",          label: "Email Capture",   icon: "@",  shortcut: null, group: "settings" },
+  { id: "team",          label: "Team Workspace",  icon: "⬡",  shortcut: null, group: "settings" },
   { id: "digest",        label: "Weekly Digest",   icon: "✉",  shortcut: null, group: "settings" },
   { id: "import",        label: "Import Data",     icon: "⇩",  shortcut: null, group: "settings" },
 ];
@@ -75,6 +78,7 @@ function ViewRouter({ view, user, onNavigate }) {
     case "import":         return <ImportHistory       {...props} />;
     case "email":          return <EmailCapture      {...props} />;
     case "billing":        return <Billing             {...props} />;
+    case "team":           return <TeamWorkspace       {...props} />;
     default:               return <Dashboard           {...props} />;
   }
 }

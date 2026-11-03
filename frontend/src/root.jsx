@@ -35,6 +35,10 @@ function isCaptureRoute() {
   return window.location.pathname === "/capture";
 }
 
+function isJoinTeamRoute() {
+  return window.location.pathname === "/join-team";
+}
+
 function returnedSessionId() {
   const p = new URLSearchParams(window.location.search);
   return p.get("subscribed") === "true" ? p.get("session_id") : null;

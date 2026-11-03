@@ -220,6 +220,9 @@ if BIOGRAPHY_AVAILABLE:
 try:
     from chat_api import register_chat_routes
     register_chat_routes(app)
+
+    from team_api import register_team_routes
+    register_team_routes(app)
     print("✓ chat routes registered")
 except Exception as e:
     print(f"⚠ chat_api not loaded: {e}")
