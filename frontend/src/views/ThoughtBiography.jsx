@@ -446,12 +446,24 @@ export default function ThoughtBiography({ user, onNavigate }) {
   }
 
   const [openEntryLoading, setOpenEntryLoading] = useState(false);
+  const [workspaces, setWorkspaces]         = useState(null); // null = not loaded yet
+  const [publishedTo, setPublishedTo]       = useState({});   // { entry_id: workspace_id | null }
+  const [publishStatus, setPublishStatus]   = useState("");   // feedback label
+  const [showPublish, setShowPublish]       = useState(false);
 
   async function openEntry(entry) {
     setMode("view");
     setActiveId(entry.id);
     setSaveResult(null);
     setMobileShowList(false);
+    setShowPublish(false);
+    setPublishStatus("");
+    // Lazy-load workspaces for the publish dropdown
+    if (workspaces === null) {
+      authFetch(`${API}/teams/me`)
+        .then(r => r.ok ? r.json() : [])
+        .then(setWorkspaces);
+    }
     // List/folder responses don't include full content — fetch it.
     if (entry.content != null) {
       setDraft(entry.content);
@@ -470,6 +482,25 @@ export default function ThoughtBiography({ user, onNavigate }) {
     } finally {
       setOpenEntryLoading(false);
     }
+  }
+
+  async function handlePublish(workspaceId) {
+    if (!activeEntry) return;
+    const eid = activeEntry.id;
+    const alreadyPublished = publishedTo[eid] === workspaceId;
+    const url = `${API}/entries/${eid}/publish?workspace_id=${workspaceId}`;
+    const method = alreadyPublished ? "DELETE" : "POST";
+    setPublishStatus("Saving…");
+    const res = await authFetch(url, { method });
+    if (res.ok) {
+      setPublishedTo(p => ({ ...p, [eid]: alreadyPublished ? null : workspaceId }));
+      setPublishStatus(alreadyPublished ? "Unpublished" : "✓ Published to team");
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setPublishStatus(d.detail?.message || d.detail || "Failed");
+    }
+    setShowPublish(false);
+    setTimeout(() => setPublishStatus(""), 3000);
   }
 
   async function saveEntry() {
@@ -715,6 +746,55 @@ export default function ThoughtBiography({ user, onNavigate }) {
               >
                 {deleting ? "Deleting…" : "Delete"}
               </button>
+              {/* Publish to team */}
+              {workspaces && workspaces.length > 0 && (
+                <div style={{ position: "relative" }}>
+                  <button
+                    className="tb-btn"
+                    onClick={() => setShowPublish(p => !p)}
+                    style={{
+                      padding: "5px 12px", background: publishedTo[activeEntry?.id] ? "rgba(200,169,110,0.15)" : "none",
+                      border: `1px solid ${publishedTo[activeEntry?.id] ? C.gold : C.border}`, borderRadius: 3,
+                      color: publishedTo[activeEntry?.id] ? C.gold : C.goldMuted,
+                      fontSize: 11, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s",
+                    }}
+                  >
+                    {publishedTo[activeEntry?.id] ? "✓ Shared" : "Share to team"}
+                  </button>
+                  {showPublish && (
+                    <div style={{
+                      position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 100,
+                      background: "#1a1a1a", border: `1px solid ${C.border}`, borderRadius: 8,
+                      minWidth: 180, boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                    }}>
+                      <div style={{ padding: "8px 14px 6px", fontSize: 10, color: C.textMuted, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                        Publish to workspace
+                      </div>
+                      {workspaces.map(ws => (
+                        <button key={ws.id} onClick={() => handlePublish(ws.id)}
+                          style={{
+                            display: "block", width: "100%", padding: "9px 14px",
+                            background: publishedTo[activeEntry?.id] === ws.id ? "rgba(200,169,110,0.1)" : "none",
+                            border: "none", borderTop: `1px solid ${C.border}`,
+                            color: publishedTo[activeEntry?.id] === ws.id ? C.gold : C.text,
+                            fontSize: 12, cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                          }}
+                        >
+                          {publishedTo[activeEntry?.id] === ws.id ? "✓ " : ""}{ws.name}
+                          {publishedTo[activeEntry?.id] === ws.id && (
+                            <span style={{ float: "right", fontSize: 10, color: C.textMuted }}>Unpublish</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {publishStatus && (
+                <span style={{ fontSize: 11, color: publishStatus.startsWith("✓") ? C.gold : "#e07070", marginLeft: 4 }}>
+                  {publishStatus}
+                </span>
+              )}
             </>
           ) : (
             <>

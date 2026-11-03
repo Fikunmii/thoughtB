@@ -25,7 +25,15 @@ function CreateWorkspaceModal({ onCreated, onClose }) {
     });
     setLoading(false);
     if (res.ok) { const d = await res.json(); onCreated(d); }
-    else { const d = await res.json(); setErr(d.detail || "Failed to create workspace"); }
+    else {
+      const d = await res.json();
+      const reason = d.detail?.reason || "";
+      if (res.status === 402 && reason === "team_required") {
+        setErr("Team Workspaces require the Team plan ($29/seat/month). Upgrade from Settings → Billing.");
+      } else {
+        setErr(d.detail?.message || d.detail || "Failed to create workspace");
+      }
+    }
   }
 
   return (
@@ -234,12 +242,25 @@ export default function TeamWorkspace({ user, onNavigate }) {
       <div style={{ padding:40, maxWidth:600, margin:"0 auto", textAlign:"center" }}>
         <div style={{ fontSize:32, marginBottom:16 }}>◈</div>
         <h2 style={{ color:"#e8d5a3", fontSize:22, margin:"0 0 12px" }}>Team Workspaces</h2>
-        <p style={{ color:"#888", fontSize:14, lineHeight:1.7, marginBottom:32 }}>
+        <p style={{ color:"#888", fontSize:14, lineHeight:1.7, marginBottom:24 }}>
           Create a shared workspace for your team. Publish entries to a shared graph, log decisions automatically from GitHub, and surface tensions between team members' thinking.
         </p>
-        <button onClick={() => setShowCreate(true)} style={{ padding:"12px 28px", background:"#c8a96e", border:"none", borderRadius:10, color:"#000", fontSize:14, fontWeight:700, cursor:"pointer" }}>
-          Create your first workspace
-        </button>
+        <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"16px 20px", marginBottom:28, textAlign:"left" }}>
+          <div style={{ fontSize:12, color:"#c8a96e", fontWeight:600, marginBottom:10 }}>Team plan — $29/seat/month · 3-seat minimum</div>
+          {["Shared org knowledge graph","Auto-ADR from merged GitHub PRs","Ask the Org — RAG chat over team thinking","Cross-member tension detection","Onboarding brief for new hires"].map(f => (
+            <div key={f} style={{ fontSize:12, color:"#888", padding:"4px 0", borderBottom:"1px solid #1a1a1a" }}>✦ {f}</div>
+          ))}
+        </div>
+        <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+          <button onClick={() => setShowCreate(true)} style={{ padding:"12px 28px", background:"#c8a96e", border:"none", borderRadius:10, color:"#000", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+            Create your first workspace
+          </button>
+          {onNavigate && (
+            <button onClick={() => onNavigate("billing")} style={{ padding:"12px 24px", background:"none", border:"1px solid #333", borderRadius:10, color:"#888", fontSize:13, cursor:"pointer" }}>
+              View pricing →
+            </button>
+          )}
+        </div>
         {showCreate && <CreateWorkspaceModal onCreated={handleCreated} onClose={() => setShowCreate(false)} />}
       </div>
     );
