@@ -154,6 +154,9 @@ export default function TeamWorkspace({ user, onNavigate }) {
   const [showCreate, setShowCreate]     = useState(false);
   const [showInvite, setShowInvite]     = useState(false);
   const [briefLoading, setBriefLoading] = useState(false);
+  const [chatInput, setChatInput]       = useState("");
+  const [chatHistory, setChatHistory]   = useState([]);
+  const [chatLoading, setChatLoading]   = useState(false);
   const [linkRepo, setLinkRepo]         = useState("");
   const [repoStatus, setRepoStatus]     = useState("");
 
@@ -190,6 +193,32 @@ export default function TeamWorkspace({ user, onNavigate }) {
     setRepoStatus("Saving…");
     const res = await authFetch(`${API}/teams/${active.id}/github?repo=${encodeURIComponent(linkRepo.trim())}`, { method: "PUT" });
     setRepoStatus(res.ok ? "✓ Linked. Add the webhook URL to your GitHub repo settings." : "Failed to link.");
+  }
+
+  async function sendChat() {
+    if (!chatInput.trim() || chatLoading) return;
+    const question = chatInput.trim();
+    setChatInput("");
+    setChatHistory(h => [...h, { role:"user", content: question }]);
+    setChatLoading(true);
+    const token = localStorage.getItem("tb_token");
+    const res = await fetch(`${API}/teams/${active.id}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ content: question }),
+    });
+    if (!res.ok) { setChatLoading(false); return; }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let answer = "";
+    setChatHistory(h => [...h, { role:"assistant", content: "" }]);
+    setChatLoading(false);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      answer += decoder.decode(value, { stream: true });
+      setChatHistory(h => h.map((m, i) => i === h.length - 1 ? { ...m, content: answer } : m));
+    }
   }
 
   const card = { background:"#111", border:"1px solid #2a2a2a", borderRadius:12, padding:"16px 20px" };
@@ -259,6 +288,7 @@ export default function TeamWorkspace({ user, onNavigate }) {
               {tabBtn("decisions", `Decisions (${decisions.length})`)}
               {tabBtn("tensions", `Tensions (${tensions.length})`)}
               {tabBtn("brief", "Onboarding Brief")}
+              {tabBtn("chat", "Ask the Org")}
               {(active.role === "admin" || active.role === "owner") && tabBtn("settings", "Settings")}
             </div>
 
@@ -368,6 +398,39 @@ export default function TeamWorkspace({ user, onNavigate }) {
                   ? <div style={{ ...card, whiteSpace:"pre-wrap", fontSize:13, color:"#ccc", lineHeight:1.8 }}>{brief.text}</div>
                   : <div style={{ color:"#555", fontSize:14 }}>No brief generated yet. Click Generate Brief to create one.</div>
                 }
+              </div>
+            )}
+
+            {/* Ask the Org */}
+            {tab === "chat" && (
+              <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 200px)", maxHeight:600 }}>
+                <div style={{ fontSize:13, color:"#888", marginBottom:16, lineHeight:1.7 }}>
+                  Ask anything grounded in your team's published entries and decision log. Answers are cited by author and date.
+                </div>
+                <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:12, marginBottom:16 }}>
+                  {chatHistory.length === 0 && (
+                    <div style={{ color:"#444", fontSize:13, marginTop:40, textAlign:"center" }}>
+                      Try: "Why did we choose this architecture?" or "What does the team think about autonomy?"
+                    </div>
+                  )}
+                  {chatHistory.map((m, i) => (
+                    <div key={i} style={{ alignSelf: m.role==="user" ? "flex-end" : "flex-start", maxWidth:"80%" }}>
+                      <div style={{ background: m.role==="user" ? "#c8a96e" : "#1a1a1a", color: m.role==="user" ? "#000" : "#ccc", padding:"10px 14px", borderRadius:10, fontSize:13, lineHeight:1.7, whiteSpace:"pre-wrap" }}>
+                        {m.content || <span style={{ opacity:0.5 }}>Thinking…</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display:"flex", gap:10 }}>
+                  <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => e.key==="Enter" && !e.shiftKey && sendChat()}
+                    placeholder="Ask the org's knowledge…"
+                    style={{ flex:1, padding:"10px 14px", background:"#111", border:"1px solid #2a2a2a", borderRadius:8, color:"#e8d5a3", fontSize:13 }} />
+                  <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
+                    style={{ padding:"10px 18px", background:"#c8a96e", border:"none", borderRadius:8, color:"#000", fontSize:13, fontWeight:600, cursor:"pointer", opacity: chatLoading||!chatInput.trim() ? 0.5 : 1 }}>
+                    {chatLoading ? "…" : "Send"}
+                  </button>
+                </div>
               </div>
             )}
 

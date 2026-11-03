@@ -33,6 +33,13 @@ PLANS = {
         "amount":     4999,
         "trial_days": 14,
     },
+    "team": {
+        "price_id":   os.getenv("STRIPE_TEAM_PRICE_ID", ""),
+        "name":       "Team",
+        "amount":     2900,   # per seat / month — billing handled per-seat via quantity
+        "trial_days": 14,
+        "per_seat":   True,
+    },
 }
 
 router = APIRouter()
@@ -160,10 +167,13 @@ def create_checkout(body: dict, current_user: dict = Depends(get_current_user)):
             "trial_settings": {"end_behavior": {"missing_payment_method": "cancel"}},
         }
 
+    seats    = int(body.get("seats", 3)) if plan.get("per_seat") else 1
+    seats    = max(3, seats)  # team minimum is 3 seats
+
     session = s.checkout.Session.create(
         customer=customer_id,
         mode="subscription",
-        line_items=[{"price": plan["price_id"], "quantity": 1}],
+        line_items=[{"price": plan["price_id"], "quantity": seats}],
         payment_method_collection="always",
         subscription_data=subscription_data,
         success_url=f"{FRONTEND_URL}?subscribed=true&plan={plan_key}&session_id={{CHECKOUT_SESSION_ID}}",

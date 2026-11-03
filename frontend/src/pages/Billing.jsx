@@ -22,6 +22,12 @@ const PLANS = [
     features: ["Everything in Personal", "Share graph with therapist or coach", "Annotation layer for shared views", "Up to 5 share links", "Priority support"],
     cta: "Start Free Trial",
   },
+  {
+    key: "team", name: "Team", price: "$29", period: "per seat / month",
+    trial: "14-day free trial · 3-seat minimum",
+    features: ["Everything in Professional", "Shared org knowledge graph", "Auto-ADR from GitHub PRs", "Ask the Org — RAG chat over team graph", "Cross-member tension detection", "Onboarding brief for new hires", "Admin controls + member roles"],
+    cta: "Start Team Trial",
+  },
 ];
 
 export default function Billing({ user, onNavigate }) {

@@ -731,3 +731,151 @@ Be specific, not generic. Keep total length under 400 words. Use markdown format
 
 def register_team_routes(app):
     app.include_router(router, tags=["teams"])
+
+
+# ── "Ask the Org" — team-scoped RAG chat ─────────────────────────────────────
+
+import re
+from typing import List
+from fastapi.responses import StreamingResponse
+
+TEAM_CHAT_MODEL = "claude-sonnet-4-6"
+TEAM_MAX_ENTRIES = 6
+
+TEAM_SYSTEM_PROMPT = """You are the ThoughtB Org assistant — an AI that helps team members explore their collective knowledge graph.
+
+Rules:
+1. Ground every claim in the provided excerpts from published team entries and decision records.
+2. Cite inline as [Entry · Author · YYYY-MM-DD] for journal entries, or [Decision · Author · YYYY-MM-DD] for ADRs.
+3. If the excerpts don't contain the answer, say so plainly — do not invent team history or decisions.
+4. Surface patterns across team members: where thinking overlaps, where it diverges.
+5. Be direct and useful. 2-5 paragraphs unless asked for depth."""
+
+
+def _esc_lucene(q: str) -> str:
+    return re.sub(r'[+\-&|!(){}\[\]^"~*?:\\/]', r'\\\g<0>', q)
+
+
+def _clip(text: str, n: int) -> str:
+    return text[:n] + "…" if len(text) > n else text
+
+
+def retrieve_team_context(workspace_id: str, question: str) -> dict:
+    """FTS over published entries + decision feed, scoped to workspace."""
+    q = _esc_lucene(question.strip())
+    excerpts: List[dict] = []
+    decisions: List[dict] = []
+
+    with driver.session() as s:
+        # FTS over published entries
+        try:
+            res = s.run("""
+                CALL db.index.fulltext.queryNodes('entry_content', $q) YIELD node, score
+                WHERE EXISTS {
+                    MATCH (node)-[:PUBLISHED_TO_TEAM]->(w:Workspace {id: $wid})
+                }
+                RETURN node.id AS id, node.content AS content,
+                       node.user_id AS user_id, node.created_at AS created_at, score
+                ORDER BY score DESC LIMIT $limit
+            """, q=q, wid=workspace_id, limit=TEAM_MAX_ENTRIES)
+            for r in res:
+                excerpts.append({
+                    "id":      r["id"],
+                    "user_id": r["user_id"],
+                    "date":    (str(r["created_at"] or ""))[:10] or "undated",
+                    "text":    _clip(r["content"] or "", 1000),
+                })
+        except Exception:
+            pass
+
+        # Cold start — most recent published entries
+        if not excerpts:
+            res = s.run("""
+                MATCH (e:Entry)-[:PUBLISHED_TO_TEAM]->(w:Workspace {id: $wid})
+                RETURN e.id AS id, e.content AS content,
+                       e.user_id AS user_id, e.created_at AS created_at
+                ORDER BY e.created_at DESC LIMIT 4
+            """, wid=workspace_id)
+            for r in res:
+                excerpts.append({
+                    "id":      r["id"],
+                    "user_id": r["user_id"],
+                    "date":    (str(r["created_at"] or ""))[:10] or "undated",
+                    "text":    _clip(r["content"] or "", 1000),
+                })
+
+        # Enrich with author names
+        uid_set = list({e["user_id"] for e in excerpts if e.get("user_id")})
+        name_map = {}
+        if uid_set:
+            names = s.run("""
+                MATCH (u:User) WHERE u.id IN $ids
+                RETURN u.id AS id, u.display_name AS name
+            """, ids=uid_set).data()
+            name_map = {n["id"]: n["name"] for n in names}
+        for e in excerpts:
+            e["author"] = name_map.get(e["user_id"], "Team member")
+
+        # Most recent decisions
+        decisions_raw = s.run("""
+            MATCH (w:Workspace {id: $wid})-[:HAS_DECISION]->(d:Decision)
+            RETURN d.id AS id, d.title AS title, d.rationale AS rationale,
+                   d.outcome AS outcome, d.author_name AS author,
+                   toString(d.created_at) AS created_at
+            ORDER BY d.created_at DESC LIMIT 4
+        """, wid=workspace_id).data()
+        for d in decisions_raw:
+            decisions.append({
+                "id":      d["id"],
+                "title":   d["title"],
+                "text":    f"{d['rationale']} Outcome: {d['outcome']}",
+                "author":  d["author"] or "Unknown",
+                "date":    (d["created_at"] or "")[:10] or "undated",
+            })
+
+    return {"excerpts": excerpts, "decisions": decisions}
+
+
+def _build_team_context_block(ctx: dict) -> str:
+    parts = []
+    for i, e in enumerate(ctx["excerpts"], 1):
+        parts.append(f"[Entry {i} · {e['author']} · {e['date']}]\n{e['text']}")
+    for d in ctx["decisions"]:
+        parts.append(f"[Decision · {d['author']} · {d['date']}]\nTitle: {d['title']}\n{d['text']}")
+    return "\n\n---\n\n".join(parts) or "(no team entries or decisions found yet)"
+
+
+class TeamChatIn(BaseModel):
+    content: str
+
+
+@router.post("/teams/{workspace_id}/chat")
+def team_chat(
+    workspace_id: str,
+    body: TeamChatIn,
+    current_user: dict = Depends(require_subscription),
+):
+    """Stream a response grounded in the team's published entries and decisions."""
+    user_id = current_user["user_id"]
+    _require_member(workspace_id, user_id)
+
+    question = body.content.strip()
+    if not question:
+        raise HTTPException(400, "Message is empty")
+
+    ctx = retrieve_team_context(workspace_id, question)
+
+    def generate():
+        try:
+            with claude.messages.stream(
+                model=TEAM_CHAT_MODEL,
+                max_tokens=1024,
+                system=f"{TEAM_SYSTEM_PROMPT}\n\nTeam knowledge base:\n{_build_team_context_block(ctx)}",
+                messages=[{"role": "user", "content": question}],
+            ) as stream:
+                for chunk in stream.text_stream:
+                    yield chunk
+        except Exception as e:
+            yield f"\n\n[error] {e}"
+
+    return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
