@@ -294,6 +294,7 @@ def join_workspace(workspace_id: str, token: str, current_user: dict = Depends(g
         s.run("MATCH (i:TeamInvite {workspace_id: $wid, token_hash: $hash}) DELETE i",
               wid=workspace_id, hash=token_hash)
 
+    _log_admin_event(workspace_id, "member_joined", user_id)
     return {"ok": True, "workspace_id": workspace_id}
 
 
@@ -313,12 +314,30 @@ def remove_member(
         raise HTTPException(403, "Cannot remove the workspace owner")
 
     with driver.session() as s:
+        # Offboarding: remove membership edge but KEEP all PUBLISHED_TO_TEAM edges
+        # so the member's contributions stay in the org graph permanently.
+        # Private entries (Entry nodes with no PUBLISHED_TO_TEAM) are never touched.
         s.run("""
             MATCH (w:Workspace {id: $wid})-[m:HAS_MEMBER]->(u:User {id: $uid})
+            SET m.offboarded_at = datetime(), m.offboarded_by = $by
             DELETE m
-        """, wid=workspace_id, uid=target_user_id)
+        """, wid=workspace_id, uid=target_user_id, by=user_id)
 
-    return {"ok": True}
+        # Log the offboard event on the workspace for the audit trail
+        s.run("""
+            MATCH (w:Workspace {id: $wid})
+            CREATE (e:AdminEvent {
+                id:           randomUUID(),
+                workspace_id: $wid,
+                type:         'member_removed',
+                actor_id:     $by,
+                target_id:    $uid,
+                created_at:   datetime()
+            })
+            CREATE (w)-[:HAS_ADMIN_EVENT]->(e)
+        """, wid=workspace_id, by=user_id, uid=target_user_id)
+
+    return {"ok": True, "note": "Member removed. Their published contributions remain in the org graph."}
 
 
 @router.put("/teams/{workspace_id}/members/{target_user_id}/role")
@@ -340,6 +359,7 @@ def change_member_role(
             SET m.role = $role
         """, wid=workspace_id, uid=target_user_id, role=req.role)
 
+    _log_admin_event(workspace_id, "role_changed", user_id, target_user_id)
     return {"ok": True}
 
 
@@ -368,6 +388,7 @@ def publish_entry(
             SET r.at = datetime()
         """, eid=entry_id, wid=workspace_id)
 
+    _log_admin_event(workspace_id, "entry_published", user_id, entry_id)
     return {"ok": True}
 
 
@@ -386,6 +407,7 @@ def unpublish_entry(
             DELETE r
         """, eid=entry_id, uid=user_id, wid=workspace_id)
 
+    _log_admin_event(workspace_id, "entry_unpublished", user_id, entry_id)
     return {"ok": True}
 
 
@@ -879,3 +901,228 @@ def team_chat(
             yield f"\n\n[error] {e}"
 
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
+
+
+# ── Admin Controls ────────────────────────────────────────────────────────────
+
+# ── Member activity log ───────────────────────────────────────────────────────
+
+@router.get("/teams/{workspace_id}/activity")
+def member_activity(workspace_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Returns per-member activity stats:
+    - last entry published to this workspace
+    - total entries published
+    - last time they wrote any entry (private or public)
+    - role + joined date
+    """
+    user_id = current_user["user_id"]
+    _require_member(workspace_id, user_id, min_role="admin")
+
+    with driver.session() as s:
+        rows = s.run("""
+            MATCH (w:Workspace {id: $wid})-[m:HAS_MEMBER]->(u:User)
+            OPTIONAL MATCH (e:Entry {user_id: u.id})-[:PUBLISHED_TO_TEAM]->(w)
+            WITH u, m,
+                 count(e)                              AS published_count,
+                 max(toString(e.created_at))           AS last_published_at
+            OPTIONAL MATCH (any:Entry {user_id: u.id})
+            WITH u, m, published_count, last_published_at,
+                 max(toString(any.created_at))         AS last_wrote_at
+            RETURN
+                u.id                                   AS user_id,
+                u.display_name                         AS display_name,
+                u.email                                AS email,
+                m.role                                 AS role,
+                toString(m.joined_at)                  AS joined_at,
+                published_count,
+                last_published_at,
+                last_wrote_at
+            ORDER BY last_published_at DESC NULLS LAST
+        """, wid=workspace_id).data()
+
+    for r in rows:
+        r["joined_at"]        = serialize_dt(r.get("joined_at"))
+        r["last_published_at"] = serialize_dt(r.get("last_published_at"))
+        r["last_wrote_at"]     = serialize_dt(r.get("last_wrote_at"))
+
+    return rows
+
+
+# ── Audit / admin event log ───────────────────────────────────────────────────
+
+@router.get("/teams/{workspace_id}/audit")
+def audit_log(workspace_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Returns the full admin event log for the workspace.
+    Events: member_removed, member_invited, member_joined, role_changed,
+            entry_published, entry_unpublished, github_linked, decision_created
+    """
+    user_id = current_user["user_id"]
+    _require_member(workspace_id, user_id, min_role="admin")
+
+    with driver.session() as s:
+        events = s.run("""
+            MATCH (w:Workspace {id: $wid})-[:HAS_ADMIN_EVENT]->(e:AdminEvent)
+            OPTIONAL MATCH (actor:User {id: e.actor_id})
+            OPTIONAL MATCH (target:User {id: e.target_id})
+            RETURN e.id          AS id,
+                   e.type        AS type,
+                   actor.display_name AS actor_name,
+                   target.display_name AS target_name,
+                   toString(e.created_at) AS created_at
+            ORDER BY e.created_at DESC LIMIT 100
+        """, wid=workspace_id).data()
+
+    for e in events:
+        e["created_at"] = serialize_dt(e.get("created_at"))
+
+    return events
+
+
+# ── Log publish/unpublish admin events ────────────────────────────────────────
+# Called internally — not an HTTP route
+
+def _log_admin_event(workspace_id: str, event_type: str, actor_id: str, target_id: str = None):
+    """Write an AdminEvent node onto the workspace for the audit trail."""
+    try:
+        with driver.session() as s:
+            s.run("""
+                MATCH (w:Workspace {id: $wid})
+                CREATE (e:AdminEvent {
+                    id:           randomUUID(),
+                    workspace_id: $wid,
+                    type:         $type,
+                    actor_id:     $actor,
+                    target_id:    $target,
+                    created_at:   datetime()
+                })
+                CREATE (w)-[:HAS_ADMIN_EVENT]->(e)
+            """, wid=workspace_id, type=event_type, actor=actor_id, target=target_id or "")
+    except Exception:
+        pass  # audit log is best-effort
+
+
+# ── Data residency setting ────────────────────────────────────────────────────
+
+REGIONS = {
+    "us-east-1":    "United States (East)",
+    "eu-west-1":    "Europe (Ireland)",
+    "ap-southeast-1": "Asia Pacific (Singapore)",
+}
+
+class DataResidencyRequest(BaseModel):
+    region: str
+
+
+@router.get("/teams/{workspace_id}/settings")
+def get_workspace_settings(workspace_id: str, current_user: dict = Depends(get_current_user)):
+    """Return workspace-level admin settings: data region, github repo, plan."""
+    user_id = current_user["user_id"]
+    _require_member(workspace_id, user_id, min_role="admin")
+
+    with driver.session() as s:
+        ws = s.run("""
+            MATCH (w:Workspace {id: $wid})
+            RETURN w.data_region  AS data_region,
+                   w.github_repo  AS github_repo,
+                   w.plan         AS plan,
+                   w.name         AS name,
+                   w.slug         AS slug
+        """, wid=workspace_id).single()
+
+    if not ws:
+        raise HTTPException(404, "Workspace not found")
+
+    return {
+        "name":        ws["name"],
+        "slug":        ws["slug"],
+        "plan":        ws["plan"],
+        "github_repo": ws["github_repo"] or "",
+        "data_region": ws["data_region"] or "us-east-1",
+        "data_region_label": REGIONS.get(ws["data_region"] or "us-east-1", "United States (East)"),
+        "available_regions": [{"value": k, "label": v} for k, v in REGIONS.items()],
+    }
+
+
+@router.put("/teams/{workspace_id}/settings/region")
+def set_data_region(
+    workspace_id: str,
+    req: DataResidencyRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Set the declared data residency region for this workspace."""
+    user_id = current_user["user_id"]
+    _require_member(workspace_id, user_id, min_role="owner")
+
+    if req.region not in REGIONS:
+        raise HTTPException(400, f"Region must be one of: {', '.join(REGIONS)}")
+
+    with driver.session() as s:
+        s.run("""
+            MATCH (w:Workspace {id: $wid})
+            SET w.data_region = $region
+        """, wid=workspace_id, region=req.region)
+
+    _log_admin_event(workspace_id, "region_changed", user_id)
+    return {"ok": True, "data_region": req.region, "label": REGIONS[req.region]}
+
+
+# ── Workspace rename ──────────────────────────────────────────────────────────
+
+class RenameRequest(BaseModel):
+    name: str
+
+@router.put("/teams/{workspace_id}/settings/rename")
+def rename_workspace(
+    workspace_id: str,
+    req: RenameRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["user_id"]
+    _require_member(workspace_id, user_id, min_role="owner")
+    name = req.name.strip()[:80]
+    if not name:
+        raise HTTPException(400, "Name cannot be empty")
+    with driver.session() as s:
+        s.run("MATCH (w:Workspace {id: $wid}) SET w.name = $name", wid=workspace_id, name=name)
+    _log_admin_event(workspace_id, "workspace_renamed", user_id)
+    return {"ok": True, "name": name}
+
+
+# ── Transfer ownership ────────────────────────────────────────────────────────
+
+class TransferRequest(BaseModel):
+    new_owner_id: str
+
+@router.put("/teams/{workspace_id}/settings/transfer")
+def transfer_ownership(
+    workspace_id: str,
+    req: TransferRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Transfer workspace ownership to another existing member."""
+    user_id = current_user["user_id"]
+    _require_member(workspace_id, user_id, min_role="owner")
+
+    with driver.session() as s:
+        # Verify new owner is a member
+        new_owner = s.run("""
+            MATCH (w:Workspace {id: $wid})-[m:HAS_MEMBER]->(u:User {id: $uid})
+            RETURN u.id AS id
+        """, wid=workspace_id, uid=req.new_owner_id).single()
+
+        if not new_owner:
+            raise HTTPException(400, "New owner must be an existing member of this workspace")
+
+        # Demote current owner to admin, promote new owner
+        s.run("""
+            MATCH (w:Workspace {id: $wid})-[m_old:HAS_MEMBER]->(old:User {id: $old_uid})
+            MATCH (w)-[m_new:HAS_MEMBER]->(new:User {id: $new_uid})
+            SET w.owner_id  = $new_uid,
+                m_old.role  = 'admin',
+                m_new.role  = 'owner'
+        """, wid=workspace_id, old_uid=user_id, new_uid=req.new_owner_id)
+
+    _log_admin_event(workspace_id, "ownership_transferred", user_id, req.new_owner_id)
+    return {"ok": True}

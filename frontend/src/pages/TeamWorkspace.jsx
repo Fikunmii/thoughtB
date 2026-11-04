@@ -167,6 +167,15 @@ export default function TeamWorkspace({ user, onNavigate }) {
   const [chatLoading, setChatLoading]   = useState(false);
   const [linkRepo, setLinkRepo]         = useState("");
   const [repoStatus, setRepoStatus]     = useState("");
+  // admin panel state
+  const [activity, setActivity]         = useState(null);
+  const [auditLog, setAuditLog]         = useState(null);
+  const [wsSettings, setWsSettings]     = useState(null);
+  const [adminTab, setAdminTab]         = useState("activity"); // activity | audit | settings
+  const [renaming, setRenaming]         = useState(false);
+  const [newName, setNewName]           = useState("");
+  const [transferTo, setTransferTo]     = useState("");
+  const [adminMsg, setAdminMsg]         = useState("");
 
   // Load workspace list
   useEffect(() => {
@@ -189,11 +198,22 @@ export default function TeamWorkspace({ user, onNavigate }) {
     setActive(ws);
   }, []);
 
+  async function loadAdminData(wid) {
+    authFetch(`${API}/teams/${wid}/activity`).then(r => r.ok ? r.json() : []).then(setActivity);
+    authFetch(`${API}/teams/${wid}/audit`).then(r => r.ok ? r.json() : []).then(setAuditLog);
+    authFetch(`${API}/teams/${wid}/settings`).then(r => r.ok ? r.json() : null).then(setWsSettings);
+  }
+
   async function generateBrief() {
     setBriefLoading(true);
     const res = await authFetch(`${API}/teams/${active.id}/brief`, { method: "POST" });
     setBriefLoading(false);
     if (res.ok) { const d = await res.json(); setBrief(d); }
+  }
+
+  function switchTab(id) {
+    setTab(id);
+    if (id === "admin" && active) loadAdminData(active.id);
   }
 
   async function linkGitHub() {
@@ -230,8 +250,8 @@ export default function TeamWorkspace({ user, onNavigate }) {
   }
 
   const card = { background:"#111", border:"1px solid #2a2a2a", borderRadius:12, padding:"16px 20px" };
-  const tabBtn = (id, label) => (
-    <button onClick={() => setTab(id)} style={{ padding:"6px 14px", borderRadius:20, border:"none", cursor:"pointer", fontSize:12, fontWeight:500, background: tab===id ? "#c8a96e" : "transparent", color: tab===id ? "#000" : "#888" }}>
+  const tabBtn = (id, label, onClick = setTab) => (
+    <button onClick={() => onClick(id)} style={{ padding:"6px 14px", borderRadius:20, border:"none", cursor:"pointer", fontSize:12, fontWeight:500, background: tab===id ? "#c8a96e" : "transparent", color: tab===id ? "#000" : "#888" }}>
       {label}
     </button>
   );
@@ -261,7 +281,213 @@ export default function TeamWorkspace({ user, onNavigate }) {
             </button>
           )}
         </div>
-        {showCreate && <CreateWorkspaceModal onCreated={handleCreated} onClose={() => setShowCreate(false)} />}
+  
+            {/* Admin Panel */}
+            {tab === "admin" && (
+              <div>
+                {/* Sub-tabs */}
+                <div style={{ display:"flex", gap:6, marginBottom:24, background:"#0d0d0d", padding:"4px 6px", borderRadius:20, width:"fit-content" }}>
+                  {[["activity","Activity Log"],["audit","Audit Trail"],["settings","Workspace Settings"]].map(([id, label]) => (
+                    <button key={id} onClick={() => setAdminTab(id)} style={{ padding:"5px 12px", borderRadius:16, border:"none", cursor:"pointer", fontSize:11, fontWeight:500, background: adminTab===id ? "#2a2a2a" : "transparent", color: adminTab===id ? "#e8d5a3" : "#666" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Activity Log */}
+                {adminTab === "activity" && (
+                  <div>
+                    <div style={{ fontSize:12, color:"#888", marginBottom:16, lineHeight:1.7 }}>
+                      Who is contributing to the team graph, and how recently. Procurement teams use this to verify adoption before renewal.
+                    </div>
+                    {!activity
+                      ? <div style={{ color:"#555", fontSize:13 }}>Loading…</div>
+                      : (
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                          <thead>
+                            <tr style={{ borderBottom:"1px solid #2a2a2a" }}>
+                              {["Member","Role","Joined","Last wrote","Published entries","Last published"].map(h => (
+                                <th key={h} style={{ padding:"6px 12px", textAlign:"left", color:"#555", fontWeight:500, fontSize:10, textTransform:"uppercase", letterSpacing:"0.1em" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activity.map(m => (
+                              <tr key={m.user_id} style={{ borderBottom:"1px solid #1a1a1a" }}>
+                                <td style={{ padding:"10px 12px" }}>
+                                  <div style={{ color:"#e8d5a3", fontWeight:500 }}>{m.display_name}</div>
+                                  <div style={{ color:"#666", fontSize:11 }}>{m.email}</div>
+                                </td>
+                                <td style={{ padding:"10px 12px", color:"#888", textTransform:"capitalize" }}>{m.role}</td>
+                                <td style={{ padding:"10px 12px", color:"#888" }}>{m.joined_at ? new Date(m.joined_at).toLocaleDateString() : "—"}</td>
+                                <td style={{ padding:"10px 12px", color: m.last_wrote_at ? "#ccc" : "#555" }}>
+                                  {m.last_wrote_at ? new Date(m.last_wrote_at).toLocaleDateString() : "Never"}
+                                </td>
+                                <td style={{ padding:"10px 12px", textAlign:"center", color: m.published_count > 0 ? "#c8a96e" : "#555" }}>
+                                  {m.published_count}
+                                </td>
+                                <td style={{ padding:"10px 12px", color: m.last_published_at ? "#ccc" : "#555" }}>
+                                  {m.last_published_at ? new Date(m.last_published_at).toLocaleDateString() : "Never"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )
+                    }
+                  </div>
+                )}
+
+                {/* Audit Trail */}
+                {adminTab === "audit" && (() => {
+                  const EVENT_LABELS = {
+                    member_joined:        "joined the workspace",
+                    member_removed:       "was removed",
+                    role_changed:         "had their role changed",
+                    entry_published:      "published an entry to the team graph",
+                    entry_unpublished:    "unpublished an entry",
+                    github_linked:        "linked a GitHub repo",
+                    decision_created:     "logged a decision (Auto-ADR)",
+                    region_changed:       "changed the data region",
+                    workspace_renamed:    "renamed the workspace",
+                    ownership_transferred:"transferred ownership",
+                  };
+                  return (
+                    <div>
+                      <div style={{ fontSize:12, color:"#888", marginBottom:16, lineHeight:1.7 }}>
+                        Full chronological record of admin actions. Required by most procurement / security teams.
+                      </div>
+                      {!auditLog
+                        ? <div style={{ color:"#555", fontSize:13 }}>Loading…</div>
+                        : auditLog.length === 0
+                        ? <div style={{ color:"#555", fontSize:13 }}>No events yet.</div>
+                        : auditLog.map(e => (
+                          <div key={e.id} style={{ display:"flex", gap:12, padding:"9px 0", borderBottom:"1px solid #1a1a1a", alignItems:"flex-start" }}>
+                            <div style={{ width:8, height:8, borderRadius:"50%", background:"#c8a96e", marginTop:5, flexShrink:0 }} />
+                            <div style={{ flex:1 }}>
+                              <span style={{ color:"#e8d5a3", fontSize:12 }}>{e.actor_name || "System"}</span>
+                              {" "}
+                              <span style={{ color:"#888", fontSize:12 }}>{EVENT_LABELS[e.type] || e.type}</span>
+                              {e.target_name && e.target_name !== e.actor_name && (
+                                <span style={{ color:"#666", fontSize:12 }}> → <span style={{ color:"#ccc" }}>{e.target_name}</span></span>
+                              )}
+                            </div>
+                            <div style={{ color:"#555", fontSize:11, flexShrink:0 }}>
+                              {e.created_at ? new Date(e.created_at).toLocaleString() : ""}
+                            </div>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  );
+                })()}
+
+                {/* Workspace Settings */}
+                {adminTab === "settings" && wsSettings && (
+                  <div style={{ maxWidth:480 }}>
+                    {adminMsg && (
+                      <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:8, background: adminMsg.startsWith("✓") ? "rgba(139,200,158,0.1)" : "rgba(224,92,92,0.1)", border:`1px solid ${adminMsg.startsWith("✓") ? "#2a4a2e" : "#4a2a2a"}`, fontSize:12, color: adminMsg.startsWith("✓") ? "#8bc89e" : "#e05c5c" }}>
+                        {adminMsg}
+                      </div>
+                    )}
+
+                    {/* Rename */}
+                    <div style={{ marginBottom:28 }}>
+                      <div style={{ fontSize:12, color:"#e8d5a3", fontWeight:600, marginBottom:10 }}>Rename workspace</div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <input value={renaming ? newName : wsSettings.name}
+                          onChange={e => { setRenaming(true); setNewName(e.target.value); }}
+                          style={{ flex:1, padding:"9px 14px", background:"#111", border:"1px solid #333", borderRadius:8, color:"#e8d5a3", fontSize:13 }} />
+                        {renaming && (
+                          <button onClick={async () => {
+                            const res = await authFetch(`${API}/teams/${active.id}/settings/rename`, { method:"PUT", body: JSON.stringify({ name: newName }) });
+                            const d = await res.json();
+                            if (res.ok) { setAdminMsg("✓ Renamed"); setWsSettings(s => ({ ...s, name: newName })); setActive(a => ({ ...a, name: newName })); setRenaming(false); }
+                            else setAdminMsg(d.detail || "Failed to rename");
+                            setTimeout(() => setAdminMsg(""), 3000);
+                          }} style={{ padding:"9px 18px", background:"#c8a96e", border:"none", borderRadius:8, color:"#000", fontSize:13, fontWeight:600, cursor:"pointer" }}>Save</button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Data residency */}
+                    <div style={{ marginBottom:28 }}>
+                      <div style={{ fontSize:12, color:"#e8d5a3", fontWeight:600, marginBottom:4 }}>Data residency</div>
+                      <div style={{ fontSize:11, color:"#888", marginBottom:10, lineHeight:1.6 }}>
+                        Declares which region your team's data is processed in. Required by EU/GDPR and enterprise security reviews.
+                      </div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <select
+                          value={wsSettings.data_region}
+                          onChange={async e => {
+                            const region = e.target.value;
+                            const res = await authFetch(`${API}/teams/${active.id}/settings/region`, { method:"PUT", body: JSON.stringify({ region }) });
+                            const d = await res.json();
+                            if (res.ok) { setAdminMsg(`✓ Data region set to ${d.label}`); setWsSettings(s => ({ ...s, data_region: region, data_region_label: d.label })); }
+                            else setAdminMsg(d.detail || "Failed");
+                            setTimeout(() => setAdminMsg(""), 4000);
+                          }}
+                          style={{ flex:1, padding:"9px 14px", background:"#111", border:"1px solid #333", borderRadius:8, color:"#e8d5a3", fontSize:13 }}
+                        >
+                          {(wsSettings.available_regions || []).map(r => (
+                            <option key={r.value} value={r.value}>{r.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div style={{ marginTop:8, fontSize:11, color:"#555" }}>
+                        Current: <span style={{ color:"#888" }}>{wsSettings.data_region_label}</span>
+                      </div>
+                    </div>
+
+                    {/* Transfer ownership — owner only */}
+                    {active.role === "owner" && (
+                      <div style={{ marginBottom:28, padding:"16px", border:"1px solid #2a1a1a", borderRadius:8 }}>
+                        <div style={{ fontSize:12, color:"#e05c5c", fontWeight:600, marginBottom:4 }}>Transfer ownership</div>
+                        <div style={{ fontSize:11, color:"#888", marginBottom:10, lineHeight:1.6 }}>
+                          You will become an admin. The new owner will manage billing and workspace settings.
+                        </div>
+                        <select value={transferTo} onChange={e => setTransferTo(e.target.value)}
+                          style={{ width:"100%", padding:"9px 14px", background:"#111", border:"1px solid #333", borderRadius:8, color:"#e8d5a3", fontSize:13, marginBottom:10 }}>
+                          <option value="">Select new owner…</option>
+                          {(active.members || []).filter(m => m.id !== active.members.find(x => x.role === "owner")?.id).map(m => (
+                            <option key={m.id} value={m.id}>{m.display_name} ({m.email})</option>
+                          ))}
+                        </select>
+                        <button disabled={!transferTo} onClick={async () => {
+                          if (!window.confirm("Transfer ownership? You will become an admin.")) return;
+                          const res = await authFetch(`${API}/teams/${active.id}/settings/transfer`, { method:"PUT", body: JSON.stringify({ new_owner_id: transferTo }) });
+                          const d = await res.json();
+                          if (res.ok) { setAdminMsg("✓ Ownership transferred"); setTransferTo(""); loadAdminData(active.id); }
+                          else setAdminMsg(d.detail || "Failed");
+                          setTimeout(() => setAdminMsg(""), 4000);
+                        }} style={{ padding:"8px 18px", background:"#2a1a1a", border:"1px solid #4a2a2a", borderRadius:8, color:"#e05c5c", fontSize:12, cursor:"pointer", opacity: !transferTo ? 0.5 : 1 }}>
+                          Transfer ownership
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Danger zone — delete workspace */}
+                    {active.role === "owner" && (
+                      <div style={{ padding:"16px", border:"1px solid #2a1a1a", borderRadius:8 }}>
+                        <div style={{ fontSize:12, color:"#e05c5c", fontWeight:600, marginBottom:4 }}>Delete workspace</div>
+                        <div style={{ fontSize:11, color:"#888", marginBottom:12, lineHeight:1.6 }}>
+                          Permanently removes the workspace, all decisions, and all team graph connections. Published entry contributions are disconnected but the entries themselves remain in members' private journals.
+                        </div>
+                        <button onClick={async () => {
+                          if (!window.confirm(`Delete "${active.name}" permanently? This cannot be undone.`)) return;
+                          const res = await authFetch(`${API}/teams/${active.id}`, { method:"DELETE" });
+                          if (res.ok) { setActive(null); setWorkspaces(ws => ws.filter(w => w.id !== active.id)); }
+                        }} style={{ padding:"8px 18px", background:"#1a0a0a", border:"1px solid #4a1a1a", borderRadius:8, color:"#e05c5c", fontSize:12, cursor:"pointer" }}>
+                          Delete workspace
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+      {showCreate && <CreateWorkspaceModal onCreated={handleCreated} onClose={() => setShowCreate(false)} />}
       </div>
     );
   }
@@ -305,12 +531,9 @@ export default function TeamWorkspace({ user, onNavigate }) {
 
             {/* Tabs */}
             <div style={{ display:"flex", gap:6, marginBottom:24, background:"#111", padding:"4px 6px", borderRadius:24, width:"fit-content" }}>
-              {tabBtn("overview", "Overview")}
-              {tabBtn("decisions", `Decisions (${decisions.length})`)}
-              {tabBtn("tensions", `Tensions (${tensions.length})`)}
-              {tabBtn("brief", "Onboarding Brief")}
-              {tabBtn("chat", "Ask the Org")}
-              {(active.role === "admin" || active.role === "owner") && tabBtn("settings", "Settings")}
+              {[["overview","Overview"],["decisions",`Decisions (${decisions.length})`],["tensions",`Tensions (${tensions.length})`],["brief","Onboarding Brief"],["chat","Ask the Org"]].map(([id,label]) => tabBtn(id,label,switchTab))}
+              {(active.role === "admin" || active.role === "owner") && tabBtn("settings", "Settings", switchTab)}
+              {(active.role === "admin" || active.role === "owner") && tabBtn("admin", "Admin", switchTab)}
             </div>
 
             {/* Overview */}
@@ -504,6 +727,212 @@ export default function TeamWorkspace({ user, onNavigate }) {
           </>
         )}
       </div>
+
+
+            {/* Admin Panel */}
+            {tab === "admin" && (
+              <div>
+                {/* Sub-tabs */}
+                <div style={{ display:"flex", gap:6, marginBottom:24, background:"#0d0d0d", padding:"4px 6px", borderRadius:20, width:"fit-content" }}>
+                  {[["activity","Activity Log"],["audit","Audit Trail"],["settings","Workspace Settings"]].map(([id, label]) => (
+                    <button key={id} onClick={() => setAdminTab(id)} style={{ padding:"5px 12px", borderRadius:16, border:"none", cursor:"pointer", fontSize:11, fontWeight:500, background: adminTab===id ? "#2a2a2a" : "transparent", color: adminTab===id ? "#e8d5a3" : "#666" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Activity Log */}
+                {adminTab === "activity" && (
+                  <div>
+                    <div style={{ fontSize:12, color:"#888", marginBottom:16, lineHeight:1.7 }}>
+                      Who is contributing to the team graph, and how recently. Procurement teams use this to verify adoption before renewal.
+                    </div>
+                    {!activity
+                      ? <div style={{ color:"#555", fontSize:13 }}>Loading…</div>
+                      : (
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                          <thead>
+                            <tr style={{ borderBottom:"1px solid #2a2a2a" }}>
+                              {["Member","Role","Joined","Last wrote","Published entries","Last published"].map(h => (
+                                <th key={h} style={{ padding:"6px 12px", textAlign:"left", color:"#555", fontWeight:500, fontSize:10, textTransform:"uppercase", letterSpacing:"0.1em" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activity.map(m => (
+                              <tr key={m.user_id} style={{ borderBottom:"1px solid #1a1a1a" }}>
+                                <td style={{ padding:"10px 12px" }}>
+                                  <div style={{ color:"#e8d5a3", fontWeight:500 }}>{m.display_name}</div>
+                                  <div style={{ color:"#666", fontSize:11 }}>{m.email}</div>
+                                </td>
+                                <td style={{ padding:"10px 12px", color:"#888", textTransform:"capitalize" }}>{m.role}</td>
+                                <td style={{ padding:"10px 12px", color:"#888" }}>{m.joined_at ? new Date(m.joined_at).toLocaleDateString() : "—"}</td>
+                                <td style={{ padding:"10px 12px", color: m.last_wrote_at ? "#ccc" : "#555" }}>
+                                  {m.last_wrote_at ? new Date(m.last_wrote_at).toLocaleDateString() : "Never"}
+                                </td>
+                                <td style={{ padding:"10px 12px", textAlign:"center", color: m.published_count > 0 ? "#c8a96e" : "#555" }}>
+                                  {m.published_count}
+                                </td>
+                                <td style={{ padding:"10px 12px", color: m.last_published_at ? "#ccc" : "#555" }}>
+                                  {m.last_published_at ? new Date(m.last_published_at).toLocaleDateString() : "Never"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )
+                    }
+                  </div>
+                )}
+
+                {/* Audit Trail */}
+                {adminTab === "audit" && (() => {
+                  const EVENT_LABELS = {
+                    member_joined:        "joined the workspace",
+                    member_removed:       "was removed",
+                    role_changed:         "had their role changed",
+                    entry_published:      "published an entry to the team graph",
+                    entry_unpublished:    "unpublished an entry",
+                    github_linked:        "linked a GitHub repo",
+                    decision_created:     "logged a decision (Auto-ADR)",
+                    region_changed:       "changed the data region",
+                    workspace_renamed:    "renamed the workspace",
+                    ownership_transferred:"transferred ownership",
+                  };
+                  return (
+                    <div>
+                      <div style={{ fontSize:12, color:"#888", marginBottom:16, lineHeight:1.7 }}>
+                        Full chronological record of admin actions. Required by most procurement / security teams.
+                      </div>
+                      {!auditLog
+                        ? <div style={{ color:"#555", fontSize:13 }}>Loading…</div>
+                        : auditLog.length === 0
+                        ? <div style={{ color:"#555", fontSize:13 }}>No events yet.</div>
+                        : auditLog.map(e => (
+                          <div key={e.id} style={{ display:"flex", gap:12, padding:"9px 0", borderBottom:"1px solid #1a1a1a", alignItems:"flex-start" }}>
+                            <div style={{ width:8, height:8, borderRadius:"50%", background:"#c8a96e", marginTop:5, flexShrink:0 }} />
+                            <div style={{ flex:1 }}>
+                              <span style={{ color:"#e8d5a3", fontSize:12 }}>{e.actor_name || "System"}</span>
+                              {" "}
+                              <span style={{ color:"#888", fontSize:12 }}>{EVENT_LABELS[e.type] || e.type}</span>
+                              {e.target_name && e.target_name !== e.actor_name && (
+                                <span style={{ color:"#666", fontSize:12 }}> → <span style={{ color:"#ccc" }}>{e.target_name}</span></span>
+                              )}
+                            </div>
+                            <div style={{ color:"#555", fontSize:11, flexShrink:0 }}>
+                              {e.created_at ? new Date(e.created_at).toLocaleString() : ""}
+                            </div>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  );
+                })()}
+
+                {/* Workspace Settings */}
+                {adminTab === "settings" && wsSettings && (
+                  <div style={{ maxWidth:480 }}>
+                    {adminMsg && (
+                      <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:8, background: adminMsg.startsWith("✓") ? "rgba(139,200,158,0.1)" : "rgba(224,92,92,0.1)", border:`1px solid ${adminMsg.startsWith("✓") ? "#2a4a2e" : "#4a2a2a"}`, fontSize:12, color: adminMsg.startsWith("✓") ? "#8bc89e" : "#e05c5c" }}>
+                        {adminMsg}
+                      </div>
+                    )}
+
+                    {/* Rename */}
+                    <div style={{ marginBottom:28 }}>
+                      <div style={{ fontSize:12, color:"#e8d5a3", fontWeight:600, marginBottom:10 }}>Rename workspace</div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <input value={renaming ? newName : wsSettings.name}
+                          onChange={e => { setRenaming(true); setNewName(e.target.value); }}
+                          style={{ flex:1, padding:"9px 14px", background:"#111", border:"1px solid #333", borderRadius:8, color:"#e8d5a3", fontSize:13 }} />
+                        {renaming && (
+                          <button onClick={async () => {
+                            const res = await authFetch(`${API}/teams/${active.id}/settings/rename`, { method:"PUT", body: JSON.stringify({ name: newName }) });
+                            const d = await res.json();
+                            if (res.ok) { setAdminMsg("✓ Renamed"); setWsSettings(s => ({ ...s, name: newName })); setActive(a => ({ ...a, name: newName })); setRenaming(false); }
+                            else setAdminMsg(d.detail || "Failed to rename");
+                            setTimeout(() => setAdminMsg(""), 3000);
+                          }} style={{ padding:"9px 18px", background:"#c8a96e", border:"none", borderRadius:8, color:"#000", fontSize:13, fontWeight:600, cursor:"pointer" }}>Save</button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Data residency */}
+                    <div style={{ marginBottom:28 }}>
+                      <div style={{ fontSize:12, color:"#e8d5a3", fontWeight:600, marginBottom:4 }}>Data residency</div>
+                      <div style={{ fontSize:11, color:"#888", marginBottom:10, lineHeight:1.6 }}>
+                        Declares which region your team's data is processed in. Required by EU/GDPR and enterprise security reviews.
+                      </div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <select
+                          value={wsSettings.data_region}
+                          onChange={async e => {
+                            const region = e.target.value;
+                            const res = await authFetch(`${API}/teams/${active.id}/settings/region`, { method:"PUT", body: JSON.stringify({ region }) });
+                            const d = await res.json();
+                            if (res.ok) { setAdminMsg(`✓ Data region set to ${d.label}`); setWsSettings(s => ({ ...s, data_region: region, data_region_label: d.label })); }
+                            else setAdminMsg(d.detail || "Failed");
+                            setTimeout(() => setAdminMsg(""), 4000);
+                          }}
+                          style={{ flex:1, padding:"9px 14px", background:"#111", border:"1px solid #333", borderRadius:8, color:"#e8d5a3", fontSize:13 }}
+                        >
+                          {(wsSettings.available_regions || []).map(r => (
+                            <option key={r.value} value={r.value}>{r.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div style={{ marginTop:8, fontSize:11, color:"#555" }}>
+                        Current: <span style={{ color:"#888" }}>{wsSettings.data_region_label}</span>
+                      </div>
+                    </div>
+
+                    {/* Transfer ownership — owner only */}
+                    {active.role === "owner" && (
+                      <div style={{ marginBottom:28, padding:"16px", border:"1px solid #2a1a1a", borderRadius:8 }}>
+                        <div style={{ fontSize:12, color:"#e05c5c", fontWeight:600, marginBottom:4 }}>Transfer ownership</div>
+                        <div style={{ fontSize:11, color:"#888", marginBottom:10, lineHeight:1.6 }}>
+                          You will become an admin. The new owner will manage billing and workspace settings.
+                        </div>
+                        <select value={transferTo} onChange={e => setTransferTo(e.target.value)}
+                          style={{ width:"100%", padding:"9px 14px", background:"#111", border:"1px solid #333", borderRadius:8, color:"#e8d5a3", fontSize:13, marginBottom:10 }}>
+                          <option value="">Select new owner…</option>
+                          {(active.members || []).filter(m => m.id !== active.members.find(x => x.role === "owner")?.id).map(m => (
+                            <option key={m.id} value={m.id}>{m.display_name} ({m.email})</option>
+                          ))}
+                        </select>
+                        <button disabled={!transferTo} onClick={async () => {
+                          if (!window.confirm("Transfer ownership? You will become an admin.")) return;
+                          const res = await authFetch(`${API}/teams/${active.id}/settings/transfer`, { method:"PUT", body: JSON.stringify({ new_owner_id: transferTo }) });
+                          const d = await res.json();
+                          if (res.ok) { setAdminMsg("✓ Ownership transferred"); setTransferTo(""); loadAdminData(active.id); }
+                          else setAdminMsg(d.detail || "Failed");
+                          setTimeout(() => setAdminMsg(""), 4000);
+                        }} style={{ padding:"8px 18px", background:"#2a1a1a", border:"1px solid #4a2a2a", borderRadius:8, color:"#e05c5c", fontSize:12, cursor:"pointer", opacity: !transferTo ? 0.5 : 1 }}>
+                          Transfer ownership
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Danger zone — delete workspace */}
+                    {active.role === "owner" && (
+                      <div style={{ padding:"16px", border:"1px solid #2a1a1a", borderRadius:8 }}>
+                        <div style={{ fontSize:12, color:"#e05c5c", fontWeight:600, marginBottom:4 }}>Delete workspace</div>
+                        <div style={{ fontSize:11, color:"#888", marginBottom:12, lineHeight:1.6 }}>
+                          Permanently removes the workspace, all decisions, and all team graph connections. Published entry contributions are disconnected but the entries themselves remain in members' private journals.
+                        </div>
+                        <button onClick={async () => {
+                          if (!window.confirm(`Delete "${active.name}" permanently? This cannot be undone.`)) return;
+                          const res = await authFetch(`${API}/teams/${active.id}`, { method:"DELETE" });
+                          if (res.ok) { setActive(null); setWorkspaces(ws => ws.filter(w => w.id !== active.id)); }
+                        }} style={{ padding:"8px 18px", background:"#1a0a0a", border:"1px solid #4a1a1a", borderRadius:8, color:"#e05c5c", fontSize:12, cursor:"pointer" }}>
+                          Delete workspace
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
       {showCreate && <CreateWorkspaceModal onCreated={handleCreated} onClose={() => setShowCreate(false)} />}
       {showInvite && active && <InviteModal workspaceId={active.id} onClose={() => setShowInvite(false)} />}
