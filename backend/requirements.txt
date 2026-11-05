@@ -46,3 +46,5 @@ posthog>=3.5.0
 python-docx>=1.1.0            # DOCX export for biography
 weasyprint>=62.0              # PDF export for biography
 requests>=2.32.0             # inbound email Postmark API calls
+reportlab>=4.0.0
+markdown>=3.4.0

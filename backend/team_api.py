@@ -691,62 +691,128 @@ def generate_brief(workspace_id: str, current_user: dict = Depends(get_current_u
     _require_member(workspace_id, user_id, min_role="admin")
 
     with driver.session() as s:
-        # Top concepts in team graph
+        # Top 5 concepts with descriptions
         concepts = s.run("""
             MATCH (e:Entry)-[:PUBLISHED_TO_TEAM]->(w:Workspace {id: $wid})
             MATCH (e)-[:SURFACES]->(c:Concept)
-            WITH c.label AS label, count(DISTINCT e) AS cnt
-            ORDER BY cnt DESC LIMIT 8
-            RETURN collect(label) AS labels
-        """, wid=workspace_id).single()
+            WITH c, count(DISTINCT e) AS cnt
+            ORDER BY cnt DESC LIMIT 5
+            RETURN c.label AS label, c.description AS description, cnt
+        """, wid=workspace_id).data()
 
-        # Recent decisions
+        # 3 most significant decisions in last 6 months
         decisions = s.run("""
             MATCH (w:Workspace {id: $wid})-[:HAS_DECISION]->(d:Decision)
-            RETURN d.title AS title, d.rationale AS rationale
+            WHERE d.created_at > datetime() - duration({months: 6})
+            RETURN d.title AS title, d.rationale AS rationale,
+                   d.alternatives_considered AS alternatives,
+                   d.outcome AS outcome, d.author_name AS author,
+                   toString(d.created_at) AS created_at
             ORDER BY d.created_at DESC LIMIT 3
         """, wid=workspace_id).data()
 
-        # Member count + name
+        # 2 unresolved tensions
+        tensions = s.run("""
+            MATCH (e1:Entry)-[:PUBLISHED_TO_TEAM]->(w:Workspace {id: $wid})
+            MATCH (e2:Entry)-[:PUBLISHED_TO_TEAM]->(w)
+            WHERE e1.user_id <> e2.user_id
+            MATCH (e1)-[:SURFACES]->(c:Concept)<-[:SURFACES]-(e2)
+            MATCH (e1)-[r:CONTRADICTS]-(e2)
+            WHERE NOT exists(r.resolved)
+            WITH c.label AS concept, e1.user_id AS uid_a, e2.user_id AS uid_b
+            LIMIT 2
+            OPTIONAL MATCH (ua:User {id: uid_a})
+            OPTIONAL MATCH (ub:User {id: uid_b})
+            RETURN concept, ua.display_name AS name_a, ub.display_name AS name_b
+        """, wid=workspace_id).data()
+
+        # Workspace meta
         ws_info = s.run("""
             MATCH (w:Workspace {id: $wid})-[:HAS_MEMBER]->(u:User)
-            RETURN w.name AS name, count(u) AS members
+            RETURN w.name AS name, count(u) AS members,
+                   toString(w.created_at) AS created_at
         """, wid=workspace_id).single()
 
-    concept_list  = concepts["labels"] if concepts else []
-    decision_list = [f"- {d['title']}: {d['rationale']}" for d in decisions]
-    ws_name   = ws_info["name"]    if ws_info else "this team"
+    ws_name    = ws_info["name"]    if ws_info else "this team"
     ws_members = ws_info["members"] if ws_info else 0
+    ws_created = (ws_info["created_at"] or "")[:10] if ws_info else ""
 
-    prompt = f"""You are writing a 2-page onboarding brief for a new member joining the '{ws_name}' team on ThoughtB.
+    concept_block = chr(10).join([
+        f"- **{c['label']}** ({c['cnt']} entries){': ' + c['description'] if c.get('description') else ''}"
+        for c in concepts
+    ]) or "- No concepts surfaced yet"
 
-Team size: {ws_members} members
-Top concepts the team thinks about: {', '.join(concept_list) or 'not yet established'}
+    decision_block = chr(10).join([
+        "- **" + d["title"] + "** (" + (d["created_at"] or "")[:10] + ")" +
+        " | Rationale: " + (d["rationale"] or "") +
+        " | Outcome: " + (d["outcome"] or "TBD")
+        for d in decisions
+    ]) or "- No decisions logged yet"
 
-Recent decisions:
-{chr(10).join(decision_list) or '- No decisions logged yet'}
+    tension_block = chr(10).join([
+        f"- **{t['concept']}**: {t['name_a'] or 'Member A'} and {t['name_b'] or 'Member B'} hold divergent views"
+        for t in tensions
+    ]) or "- No unresolved tensions"
 
-Write a warm, clear onboarding brief with these sections:
-1. **What this team thinks about** (based on the top concepts — explain the themes in plain language)
-2. **Recent key decisions** (summarize the decisions above in context)
-3. **How to contribute** (encourage publishing entries to the team graph, what kinds of thoughts are valuable here)
+    prompt = f"""You are writing a crisp onboarding brief for a new member joining the '{ws_name}' team on ThoughtB.
 
-Be specific, not generic. Keep total length under 400 words. Use markdown formatting."""
+Team: {ws_members} members, active since {ws_created or 'recently'}
+
+TOP 5 CONCEPTS (what this team thinks about most):
+{concept_block}
+
+3 MOST SIGNIFICANT DECISIONS (last 6 months):
+{decision_block}
+
+2 UNRESOLVED TENSIONS (open questions the team is working through):
+{tension_block}
+
+Write a professional, specific onboarding brief with EXACTLY these four sections:
+
+# Welcome to {ws_name}
+
+## What This Team Thinks About
+Explain the top 5 concepts in plain language — what do they reveal about this team's focus and mental models? Be specific, not generic.
+
+## Key Decisions You Should Know
+Summarise the 3 decisions above with enough context that a newcomer understands the reasoning, not just the outcome.
+
+## Open Questions We're Working Through
+Frame the 2 tensions as productive intellectual challenges the team is actively thinking about — not problems, but interesting questions.
+
+## How to Contribute
+Practical guidance: what kinds of entries are most valuable here, how the team graph works, and what "good" looks like on day 30.
+
+---
+Tone: warm but professional. Length: 500-600 words total. Use markdown headers and bullet points."""
 
     msg = claude.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=700,
+        max_tokens=1000,
         messages=[{"role": "user", "content": prompt}]
     )
     brief_text = msg.content[0].text.strip()
 
+    # Store raw data alongside text so PDF can use it
+    brief_meta = {
+        "workspace":  ws_name,
+        "members":    ws_members,
+        "concepts":   [c["label"] for c in concepts],
+        "decisions":  len(decisions),
+        "tensions":   len(tensions),
+        "generated":  datetime.now(timezone.utc).isoformat()[:10],
+    }
+
     with driver.session() as s:
         s.run("""
             MATCH (w:Workspace {id: $wid})
-            SET w.brief_text = $text, w.brief_generated_at = datetime()
-        """, wid=workspace_id, text=brief_text)
+            SET w.brief_text = $text,
+                w.brief_meta = $meta,
+                w.brief_generated_at = datetime()
+        """, wid=workspace_id, text=brief_text, meta=json.dumps(brief_meta))
 
-    return {"text": brief_text}
+    _log_admin_event(workspace_id, "brief_generated", user_id)
+    return {"text": brief_text, "meta": brief_meta}
 
 
 # ── registration helper ───────────────────────────────────────────────────────
@@ -1126,3 +1192,193 @@ def transfer_ownership(
 
     _log_admin_event(workspace_id, "ownership_transferred", user_id, req.new_owner_id)
     return {"ok": True}
+
+
+# ── Onboarding Brief PDF ──────────────────────────────────────────────────────
+
+from io import BytesIO
+from fastapi.responses import Response
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.lib.colors import HexColor, white, black
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, HRFlowable,
+    Table, TableStyle, KeepTogether
+)
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
+
+
+def _build_brief_pdf(brief_text: str, ws_name: str, generated: str) -> bytes:
+    """
+    Render the markdown brief text into a branded A4 PDF using ReportLab.
+    Returns raw bytes.
+    """
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        leftMargin=20*mm, rightMargin=20*mm,
+        topMargin=18*mm, bottomMargin=18*mm,
+    )
+
+    # ── Colour palette (matches ThoughtB dark theme, works on white paper)
+    GOLD   = HexColor("#C8A96E")
+    DARK   = HexColor("#1A1A1A")
+    MID    = HexColor("#555555")
+    LIGHT  = HexColor("#888888")
+
+    styles = getSampleStyleSheet()
+
+    def S(name, **kw):
+        base = styles["Normal"]
+        return ParagraphStyle(name, parent=base, **kw)
+
+    cover_title = S("CoverTitle",
+        fontSize=28, leading=34, textColor=DARK,
+        fontName="Helvetica-Bold", spaceAfter=6)
+    cover_sub   = S("CoverSub",
+        fontSize=12, leading=16, textColor=MID,
+        fontName="Helvetica", spaceAfter=4)
+    cover_meta  = S("CoverMeta",
+        fontSize=10, leading=14, textColor=LIGHT,
+        fontName="Helvetica")
+    h1          = S("H1",
+        fontSize=16, leading=20, textColor=DARK,
+        fontName="Helvetica-Bold", spaceBefore=14, spaceAfter=4)
+    h2          = S("H2",
+        fontSize=12, leading=16, textColor=HexColor("#333333"),
+        fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=3)
+    body        = S("Body",
+        fontSize=10, leading=15, textColor=DARK,
+        fontName="Helvetica", spaceAfter=4)
+    bullet_s    = S("Bullet",
+        fontSize=10, leading=15, textColor=DARK,
+        fontName="Helvetica", leftIndent=12, spaceAfter=3,
+        bulletIndent=0)
+    footer_s    = S("Footer",
+        fontSize=8, leading=10, textColor=LIGHT,
+        fontName="Helvetica", alignment=TA_CENTER)
+
+    story = []
+
+    # ── Cover block ──────────────────────────────────────────────────────────
+    story.append(Spacer(1, 8*mm))
+    story.append(HRFlowable(width="100%", thickness=3, color=GOLD, spaceAfter=6*mm))
+    story.append(Paragraph("Onboarding Brief", cover_sub))
+    story.append(Paragraph(ws_name, cover_title))
+    story.append(Spacer(1, 2*mm))
+    story.append(Paragraph(f"Generated {generated} · ThoughtB Team Workspace", cover_meta))
+    story.append(HRFlowable(width="100%", thickness=1, color=HexColor("#DDDDDD"), spaceBefore=6*mm, spaceAfter=8*mm))
+
+    # ── Parse markdown into ReportLab flowables ──────────────────────────────
+    lines = brief_text.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip()
+
+        # H1 — # heading
+        if line.startswith("# "):
+            text = line[2:].strip()
+            story.append(Paragraph(text, h1))
+            story.append(HRFlowable(width="40%", thickness=2, color=GOLD, spaceAfter=4))
+
+        # H2 — ## heading
+        elif line.startswith("## "):
+            text = line[3:].strip()
+            story.append(Paragraph(text, h2))
+
+        # H3 — ### heading
+        elif line.startswith("### "):
+            text = line[4:].strip()
+            story.append(Paragraph(f"<b>{text}</b>", body))
+
+        # Bullet — - item or * item
+        elif line.startswith("- ") or line.startswith("* "):
+            text = line[2:].strip()
+            # Convert **bold** inline
+            text = _md_inline(text)
+            story.append(Paragraph(f"• {text}", bullet_s))
+
+        # Horizontal rule
+        elif line.strip() in ("---", "***", "___"):
+            story.append(HRFlowable(width="100%", thickness=0.5,
+                color=HexColor("#DDDDDD"), spaceBefore=4, spaceAfter=4))
+
+        # Empty line
+        elif line.strip() == "":
+            story.append(Spacer(1, 2*mm))
+
+        # Normal paragraph
+        else:
+            text = _md_inline(line)
+            if text:
+                story.append(Paragraph(text, body))
+
+        i += 1
+
+    # ── Footer ───────────────────────────────────────────────────────────────
+    story.append(Spacer(1, 10*mm))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#DDDDDD"), spaceAfter=3*mm))
+    story.append(Paragraph(
+        f"This document was generated by ThoughtB on {generated}. "
+        "It reflects the team's published thinking at the time of generation. "
+        "thoughtbiography.site",
+        footer_s
+    ))
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+def _md_inline(text: str) -> str:
+    """Convert inline markdown (**bold**, *italic*, `code`) to ReportLab XML."""
+    import re
+    # **bold**
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    # *italic*
+    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+    # `code`
+    text = re.sub(r'`(.+?)`', r'<font name="Courier">\1</font>', text)
+    # Escape bare & < > that aren't part of tags
+    # (ReportLab uses XML-style markup — & must be &amp; outside tags)
+    # Simple: escape & that aren't already &amp;/&lt;/&gt;
+    text = re.sub(r'&(?!amp;|lt;|gt;|apos;|quot;)', '&amp;', text)
+    return text
+
+
+@router.get("/teams/{workspace_id}/brief/pdf")
+def download_brief_pdf(workspace_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Returns the stored onboarding brief as a formatted A4 PDF.
+    Generates text first if none exists yet (requires admin).
+    """
+    user_id = current_user["user_id"]
+    _require_member(workspace_id, user_id)
+
+    with driver.session() as s:
+        row = s.run("""
+            MATCH (w:Workspace {id: $wid})
+            RETURN w.brief_text        AS text,
+                   w.name              AS name,
+                   toString(w.brief_generated_at) AS generated_at
+        """, wid=workspace_id).single()
+
+    if not row or not row["text"]:
+        raise HTTPException(404, "No brief generated yet. Ask an admin to generate one first.")
+
+    ws_name   = row["name"] or workspace_id
+    generated = serialize_dt(row.get("generated_at")) or datetime.now(timezone.utc).isoformat()[:10]
+    if generated and "T" in generated:
+        generated = generated[:10]
+
+    pdf_bytes = _build_brief_pdf(row["text"], ws_name, generated)
+
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in ws_name)
+    filename  = f"ThoughtB_Onboarding_Brief_{safe_name}_{generated}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

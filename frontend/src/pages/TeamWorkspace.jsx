@@ -634,9 +634,34 @@ export default function TeamWorkspace({ user, onNavigate }) {
                   <div style={{ fontSize:13, color:"#888" }}>
                     A Claude-generated brief for new members — covers the team's key themes, recent decisions, and how to contribute.
                   </div>
-                  <button onClick={generateBrief} disabled={briefLoading} style={{ padding:"8px 16px", background:"#c8a96e", border:"none", borderRadius:8, color:"#000", fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0, marginLeft:16, opacity: briefLoading ? 0.6 : 1 }}>
-                    {briefLoading ? "Generating…" : brief?.text ? "Regenerate" : "Generate Brief"}
-                  </button>
+                  <div style={{ display:"flex", gap:8, flexShrink:0, marginLeft:16 }}>
+                    <button onClick={generateBrief} disabled={briefLoading} style={{ padding:"8px 16px", background:"#c8a96e", border:"none", borderRadius:8, color:"#000", fontSize:12, fontWeight:600, cursor:"pointer", opacity: briefLoading ? 0.6 : 1 }}>
+                      {briefLoading ? "Generating…" : brief?.text ? "Regenerate" : "Generate Brief"}
+                    </button>
+                    {brief?.text && (
+                      <a href={`${API}/teams/${active.id}/brief/pdf`}
+                        onClick={e => {
+                          e.preventDefault();
+                          const token = localStorage.getItem("tb_token");
+                          fetch(`${API}/teams/${active.id}/brief/pdf`, {
+                            headers: { "Authorization": `Bearer ${token}` }
+                          })
+                          .then(r => r.ok ? r.blob() : Promise.reject("Failed"))
+                          .then(blob => {
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `ThoughtB_Brief_${active.name.replace(/\s+/g, "_")}.pdf`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          })
+                          .catch(() => alert("Failed to download PDF"));
+                        }}
+                        style={{ padding:"8px 16px", background:"none", border:"1px solid #333", borderRadius:8, color:"#888", fontSize:12, cursor:"pointer", textDecoration:"none", display:"flex", alignItems:"center", gap:6 }}>
+                        ↓ Download PDF
+                      </a>
+                    )}
+                  </div>
                 </div>
                 {brief?.text
                   ? <div style={{ ...card, whiteSpace:"pre-wrap", fontSize:13, color:"#ccc", lineHeight:1.8 }}>{brief.text}</div>
