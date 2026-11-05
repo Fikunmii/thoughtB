@@ -1,14 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { authFetch } from "../auth/Auth";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-function authFetch(url, opts = {}) {
-  const token = localStorage.getItem("tb_token");
-  return fetch(url, {
-    ...opts,
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}`, ...(opts.headers || {}) },
-  });
-}
 
 // ── Create Workspace Modal ────────────────────────────────────────────────────
 function CreateWorkspaceModal({ onCreated, onClose }) {
@@ -229,10 +222,8 @@ export default function TeamWorkspace({ user, onNavigate }) {
     setChatInput("");
     setChatHistory(h => [...h, { role:"user", content: question }]);
     setChatLoading(true);
-    const token = localStorage.getItem("tb_token");
-    const res = await fetch(`${API}/teams/${active.id}/chat`, {
+    const res = await authFetch(`${API}/teams/${active.id}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ content: question }),
     });
     if (!res.ok) { setChatLoading(false); return; }
@@ -642,10 +633,7 @@ export default function TeamWorkspace({ user, onNavigate }) {
                       <a href={`${API}/teams/${active.id}/brief/pdf`}
                         onClick={e => {
                           e.preventDefault();
-                          const token = localStorage.getItem("tb_token");
-                          fetch(`${API}/teams/${active.id}/brief/pdf`, {
-                            headers: { "Authorization": `Bearer ${token}` }
-                          })
+                            authFetch(`${API}/teams/${active.id}/brief/pdf`)
                           .then(r => r.ok ? r.blob() : Promise.reject("Failed"))
                           .then(blob => {
                             const url = URL.createObjectURL(blob);

@@ -13,7 +13,7 @@ export default function JoinTeam({ onNavigate }) {
 
     if (!token) { setStatus("error"); setMsg("Invalid invite link — no token found."); return; }
 
-    const tb_token = localStorage.getItem("tb_token");
+    const tb_token = sessionStorage.getItem("tb_access");
     if (!tb_token) {
       // Not logged in — save token and redirect to auth
       sessionStorage.setItem("tb_join_token", token);
