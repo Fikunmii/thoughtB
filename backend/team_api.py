@@ -154,14 +154,6 @@ def list_my_workspaces(current_user: dict = Depends(get_current_user)):
             MATCH (w:Workspace)-[m:HAS_MEMBER]->(u:User {id: $uid})
             RETURN w.id AS id, w.name AS name, w.slug AS slug,
                    w.owner_id AS owner_id, m.role AS role,
-                   serialize_dt(w.created_at) AS created_at
-        """, uid=user_id).data()
-    # serialize_dt not available in Cypher — fix inline
-    with driver.session() as s:
-        rows = s.run("""
-            MATCH (w:Workspace)-[m:HAS_MEMBER]->(u:User {id: $uid})
-            RETURN w.id AS id, w.name AS name, w.slug AS slug,
-                   w.owner_id AS owner_id, m.role AS role,
                    toString(w.created_at) AS created_at
         """, uid=user_id).data()
     for r in rows:
@@ -1198,15 +1190,19 @@ def transfer_ownership(
 
 from io import BytesIO
 from fastapi.responses import Response
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import mm
-from reportlab.lib.colors import HexColor, white, black
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, HRFlowable,
-    Table, TableStyle, KeepTogether
-)
-from reportlab.lib.enums import TA_LEFT, TA_CENTER
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.lib.colors import HexColor, white, black
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, HRFlowable,
+        Table, TableStyle, KeepTogether
+    )
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    _REPORTLAB_OK = True
+except ImportError:
+    _REPORTLAB_OK = False
 
 
 def _build_brief_pdf(brief_text: str, ws_name: str, generated: str) -> bytes:
@@ -1351,8 +1347,9 @@ def _md_inline(text: str) -> str:
 def download_brief_pdf(workspace_id: str, current_user: dict = Depends(get_current_user)):
     """
     Returns the stored onboarding brief as a formatted A4 PDF.
-    Generates text first if none exists yet (requires admin).
     """
+    if not _REPORTLAB_OK:
+        raise HTTPException(503, "PDF generation library not available — backend is still starting up. Try again in a moment.")
     user_id = current_user["user_id"]
     _require_member(workspace_id, user_id)
 
