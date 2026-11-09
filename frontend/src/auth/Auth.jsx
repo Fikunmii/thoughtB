@@ -33,9 +33,12 @@ export const AuthStorage = {
 export async function authFetch(url, options = {}) {
   let token = AuthStorage.getAccess();
 
+  const contentType = options.body && !options.headers?.["Content-Type"]
+    ? { "Content-Type": "application/json" }
+    : {};
   const res = await fetch(url, {
     ...options,
-    headers: { ...options.headers, Authorization: `Bearer ${token}` },
+    headers: { ...contentType, ...options.headers, Authorization: `Bearer ${token}` },
   });
 
   if (res.status === 401) {
@@ -57,7 +60,7 @@ export async function authFetch(url, options = {}) {
     // Retry original request
     return notifyPaywall(await fetch(url, {
       ...options,
-      headers: { ...options.headers, Authorization: `Bearer ${data.access_token}` },
+      headers: { ...contentType, ...options.headers, Authorization: `Bearer ${data.access_token}` },
     }));
   }
 
