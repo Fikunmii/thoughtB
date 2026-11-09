@@ -24,7 +24,8 @@ function CreateWorkspaceModal({ onCreated, onClose }) {
       if (res.status === 402 && reason === "team_required") {
         setErr("Team Workspaces require the Team plan ($29/seat/month). Upgrade from Settings → Billing.");
       } else {
-        setErr(d.detail?.message || d.detail || "Failed to create workspace");
+        const det = d.detail;
+        setErr(typeof det === "string" ? det : det?.message || "Failed to create workspace");
       }
     }
   }
@@ -68,7 +69,7 @@ function InviteModal({ workspaceId, onClose }) {
     });
     setLoading(false);
     if (res.ok) { const d = await res.json(); setResult(d); }
-    else { const d = await res.json(); setErr(d.detail || "Failed to send invite"); }
+    else { const d = await res.json(); const det = d.detail; setErr(typeof det === "string" ? det : det?.message || "Failed to send invite"); }
   }
 
   return (
@@ -394,7 +395,7 @@ export default function TeamWorkspace({ user, onNavigate }) {
                             const res = await authFetch(`${API}/teams/${active.id}/settings/rename`, { method:"PUT", body: JSON.stringify({ name: newName }) });
                             const d = await res.json();
                             if (res.ok) { setAdminMsg("✓ Renamed"); setWsSettings(s => ({ ...s, name: newName })); setActive(a => ({ ...a, name: newName })); setRenaming(false); }
-                            else setAdminMsg(d.detail || "Failed to rename");
+                            else setAdminMsg(typeof d.detail === "string" ? d.detail : d.detail?.message || "Failed to rename");
                             setTimeout(() => setAdminMsg(""), 3000);
                           }} style={{ padding:"9px 18px", background:"#c8a96e", border:"none", borderRadius:8, color:"#000", fontSize:13, fontWeight:600, cursor:"pointer" }}>Save</button>
                         )}
@@ -415,7 +416,7 @@ export default function TeamWorkspace({ user, onNavigate }) {
                             const res = await authFetch(`${API}/teams/${active.id}/settings/region`, { method:"PUT", body: JSON.stringify({ region }) });
                             const d = await res.json();
                             if (res.ok) { setAdminMsg(`✓ Data region set to ${d.label}`); setWsSettings(s => ({ ...s, data_region: region, data_region_label: d.label })); }
-                            else setAdminMsg(d.detail || "Failed");
+                            else setAdminMsg(typeof d.detail === "string" ? d.detail : d.detail?.message || "Failed");
                             setTimeout(() => setAdminMsg(""), 4000);
                           }}
                           style={{ flex:1, padding:"9px 14px", background:"#111", border:"1px solid #333", borderRadius:8, color:"#e8d5a3", fontSize:13 }}
@@ -449,7 +450,7 @@ export default function TeamWorkspace({ user, onNavigate }) {
                           const res = await authFetch(`${API}/teams/${active.id}/settings/transfer`, { method:"PUT", body: JSON.stringify({ new_owner_id: transferTo }) });
                           const d = await res.json();
                           if (res.ok) { setAdminMsg("✓ Ownership transferred"); setTransferTo(""); loadAdminData(active.id); }
-                          else setAdminMsg(d.detail || "Failed");
+                          else setAdminMsg(typeof d.detail === "string" ? d.detail : d.detail?.message || "Failed");
                           setTimeout(() => setAdminMsg(""), 4000);
                         }} style={{ padding:"8px 18px", background:"#2a1a1a", border:"1px solid #4a2a2a", borderRadius:8, color:"#e05c5c", fontSize:12, cursor:"pointer", opacity: !transferTo ? 0.5 : 1 }}>
                           Transfer ownership
@@ -863,7 +864,7 @@ export default function TeamWorkspace({ user, onNavigate }) {
                             const res = await authFetch(`${API}/teams/${active.id}/settings/rename`, { method:"PUT", body: JSON.stringify({ name: newName }) });
                             const d = await res.json();
                             if (res.ok) { setAdminMsg("✓ Renamed"); setWsSettings(s => ({ ...s, name: newName })); setActive(a => ({ ...a, name: newName })); setRenaming(false); }
-                            else setAdminMsg(d.detail || "Failed to rename");
+                            else setAdminMsg(typeof d.detail === "string" ? d.detail : d.detail?.message || "Failed to rename");
                             setTimeout(() => setAdminMsg(""), 3000);
                           }} style={{ padding:"9px 18px", background:"#c8a96e", border:"none", borderRadius:8, color:"#000", fontSize:13, fontWeight:600, cursor:"pointer" }}>Save</button>
                         )}
@@ -884,7 +885,7 @@ export default function TeamWorkspace({ user, onNavigate }) {
                             const res = await authFetch(`${API}/teams/${active.id}/settings/region`, { method:"PUT", body: JSON.stringify({ region }) });
                             const d = await res.json();
                             if (res.ok) { setAdminMsg(`✓ Data region set to ${d.label}`); setWsSettings(s => ({ ...s, data_region: region, data_region_label: d.label })); }
-                            else setAdminMsg(d.detail || "Failed");
+                            else setAdminMsg(typeof d.detail === "string" ? d.detail : d.detail?.message || "Failed");
                             setTimeout(() => setAdminMsg(""), 4000);
                           }}
                           style={{ flex:1, padding:"9px 14px", background:"#111", border:"1px solid #333", borderRadius:8, color:"#e8d5a3", fontSize:13 }}
@@ -918,7 +919,7 @@ export default function TeamWorkspace({ user, onNavigate }) {
                           const res = await authFetch(`${API}/teams/${active.id}/settings/transfer`, { method:"PUT", body: JSON.stringify({ new_owner_id: transferTo }) });
                           const d = await res.json();
                           if (res.ok) { setAdminMsg("✓ Ownership transferred"); setTransferTo(""); loadAdminData(active.id); }
-                          else setAdminMsg(d.detail || "Failed");
+                          else setAdminMsg(typeof d.detail === "string" ? d.detail : d.detail?.message || "Failed");
                           setTimeout(() => setAdminMsg(""), 4000);
                         }} style={{ padding:"8px 18px", background:"#2a1a1a", border:"1px solid #4a2a2a", borderRadius:8, color:"#e05c5c", fontSize:12, cursor:"pointer", opacity: !transferTo ? 0.5 : 1 }}>
                           Transfer ownership
