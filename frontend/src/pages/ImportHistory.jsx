@@ -284,6 +284,7 @@ export default function ImportHistory({ user, onNavigate }) {
         const d = await res.json();
         setHistory(Array.isArray(d.imports) ? d.imports : []);
       }
+      // 422/401/403 → just show empty history, don't crash
     } catch { /* offline */ }
     finally { setLoading(false); }
   }, []);
@@ -304,7 +305,14 @@ export default function ImportHistory({ user, onNavigate }) {
       try { d = await res.json(); } catch { d = {}; }
 
       if (!res.ok) {
-        setUploadErr(String(d.detail || `Upload failed (${res.status}).`));
+        // d.detail can be a string or a FastAPI validation array
+        let msg = `Upload failed (${res.status}).`;
+        if (d && d.detail) {
+          if (typeof d.detail === "string") msg = d.detail;
+          else if (Array.isArray(d.detail)) msg = d.detail.map(e => e.msg || JSON.stringify(e)).join("; ");
+          else msg = JSON.stringify(d.detail);
+        }
+        setUploadErr(msg);
         return;
       }
       setActiveJob(d);

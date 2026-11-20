@@ -33,7 +33,7 @@ export const AuthStorage = {
 export async function authFetch(url, options = {}) {
   let token = AuthStorage.getAccess();
 
-  const contentType = options.body && !options.headers?.["Content-Type"]
+  const contentType = options.body && !(options.body instanceof FormData) && !options.headers?.["Content-Type"]
     ? { "Content-Type": "application/json" }
     : {};
   const res = await fetch(url, {

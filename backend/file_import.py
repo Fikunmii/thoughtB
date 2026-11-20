@@ -45,7 +45,12 @@ MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 MIN_WORDS        = 20
 
 
-# ── Auth helper (mirrors limitless_import) ────────────────────────────────────
+# ── Auth helpers (mirrors limitless_import exactly) ───────────────────────────
+
+def _current_user():
+    from auth import get_current_user
+    return Depends(get_current_user)
+
 
 def _subscribed_user():
     from auth import require_subscription
