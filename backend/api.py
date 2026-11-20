@@ -214,6 +214,13 @@ try:
 except Exception as e:
     print(f"⚠ limitless_import not loaded: {e}")
 
+try:
+    from file_import import register_file_import_routes
+    register_file_import_routes(app)
+    print("✓ file import routes registered")
+except Exception as e:
+    print(f"⚠ file_import not loaded: {e}")
+
 if BIOGRAPHY_AVAILABLE:
     register_biography_routes(app)
 

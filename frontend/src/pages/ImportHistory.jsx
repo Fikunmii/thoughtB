@@ -29,7 +29,6 @@ function inject() {
   }
 }
 
-// ── Spinner ───────────────────────────────────────────────────────────────────
 function Spinner({ size = 16 }) {
   return (
     <div style={{
@@ -41,7 +40,6 @@ function Spinner({ size = 16 }) {
   );
 }
 
-// ── Progress bar ─────────────────────────────────────────────────────────────
 function ProgressBar({ pct, status }) {
   const color = status === "complete" ? C.green : status === "failed" ? C.red : C.gold;
   return (
@@ -58,10 +56,34 @@ function ProgressBar({ pct, status }) {
   );
 }
 
-// ── Upload zone ───────────────────────────────────────────────────────────────
-function UploadZone({ onFile }) {
+// File type info
+const FILE_TYPES = [
+  { ext: ".pdf",  icon: "📄", label: "PDF" },
+  { ext: ".docx", icon: "📝", label: "Word" },
+  { ext: ".txt",  icon: "📃", label: "Text" },
+  { ext: ".md",   icon: "📃", label: "Markdown" },
+  { ext: ".json", icon: "🗂", label: "JSON / Limitless" },
+  { ext: ".zip",  icon: "📦", label: "ZIP Archive" },
+];
+
+function FileTypeChips() {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+      {FILE_TYPES.map(ft => (
+        <span key={ft.ext} style={{
+          padding: "3px 10px", borderRadius: 20, fontSize: 11,
+          border: `1px solid ${C.border}`, color: C.textMuted,
+        }}>
+          {ft.icon} {ft.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function UploadZone({ onFile, uploading }) {
   const [isDragging, setIsDragging] = useState(false);
-  const inputRef    = useRef(null);
+  const inputRef = useRef(null);
 
   function handleDrop(e) {
     e.preventDefault();
@@ -74,6 +96,20 @@ function UploadZone({ onFile }) {
     const file = e.target.files?.[0];
     if (file) onFile(file);
     e.target.value = "";
+  }
+
+  if (uploading) {
+    return (
+      <div style={{
+        border: `1px solid ${C.border}`, borderRadius: 4,
+        padding: "30px", textAlign: "center",
+      }}>
+        <Spinner size={24} />
+        <div style={{ color: C.textMuted, fontSize: 13, marginTop: 12 }}>
+          Uploading and processing file…
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -90,18 +126,22 @@ function UploadZone({ onFile }) {
         cursor: "pointer",
       }}
     >
-      <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.4 }}>↑</div>
-      <div style={{ color: C.gold, fontSize: 14, fontStyle: "italic", marginBottom: 6 }}>
-        Drop your Limitless export here
+      <div style={{ fontSize: 32, marginBottom: 10 }}>↑</div>
+      <div style={{ color: C.gold, fontSize: 15, fontStyle: "italic", marginBottom: 8 }}>
+        Drop any file here, or click to browse
       </div>
-      <div style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.6 }}>
-        Accepts .json or .zip &nbsp;·&nbsp; max 50MB<br />
-        Export your data from the Limitless app before December 19
+      <div style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.6, marginBottom: 12 }}>
+        Your file will be processed through the concept extraction pipeline<br />
+        and added to your knowledge graph as journal entries.
+      </div>
+      <FileTypeChips />
+      <div style={{ color: C.textMuted, fontSize: 11, marginTop: 10 }}>
+        Max 50 MB
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept=".json,.zip"
+        accept=".pdf,.docx,.txt,.md,.json,.zip"
         onChange={handleChange}
         style={{ display: "none" }}
       />
@@ -109,14 +149,13 @@ function UploadZone({ onFile }) {
   );
 }
 
-// ── Active job card ───────────────────────────────────────────────────────────
 function ActiveJobCard({ job, onDone }) {
   const [status, setStatus] = useState(job);
   const pollRef = useRef(null);
 
   const poll = useCallback(async () => {
     try {
-      const res = await authFetch(`${API}/import/limitless/status/${job.job_id}`);
+      const res = await authFetch(`${API}/import/file/status/${job.job_id}`);
       if (!res.ok) return;
       const d = await res.json();
       setStatus(d);
@@ -152,11 +191,11 @@ function ActiveJobCard({ job, onDone }) {
         )}
         <div>
           <div style={{ color: C.gold, fontSize: 13 }}>
-            {status.status === "processing" ? "Importing…" :
+            {status.status === "processing" ? "Processing…" :
              status.status === "complete"   ? "Import complete" : "Import failed"}
           </div>
           {status.filename && (
-            <div style={{ color: C.textMuted, fontSize: 11, marginTop: 1 }}>{status.filename}</div>
+            <div style={{ color: C.textMuted, fontSize: 11, marginTop: 1 }}>{String(status.filename)}</div>
           )}
         </div>
       </div>
@@ -164,44 +203,44 @@ function ActiveJobCard({ job, onDone }) {
       <ProgressBar pct={pct} status={status.status} />
 
       <div style={{ marginTop: 10, display: "flex", gap: 20, fontSize: 11, color: C.textMuted }}>
-        <span>Total: {status.total || 0}</span>
+        <span>Chunks: {status.total || 0}</span>
         <span style={{ color: C.green }}>Imported: {status.imported || 0}</span>
-        {status.failed > 0 && <span style={{ color: C.red }}>Failed: {status.failed}</span>}
-        {status.date_from && (
-          <span>{status.date_from} – {status.date_to || "present"}</span>
-        )}
+        {(status.failed || 0) > 0 && <span style={{ color: C.red }}>Failed: {status.failed}</span>}
       </div>
     </div>
   );
 }
 
-// ── History row ───────────────────────────────────────────────────────────────
+function typeIcon(fileType) {
+  const map = { pdf: "📄", docx: "📝", txt: "📃", md: "📃", json: "🗂", zip: "📦" };
+  return map[fileType] || "📁";
+}
+
 function HistoryRow({ imp, onDelete }) {
-  const date = imp.completed_at
-    ? new Date(imp.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    : new Date(imp.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const dateStr = imp.completed_at || imp.created_at;
+  const date = dateStr
+    ? new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "—";
 
   const statusColor = imp.status === "complete" ? C.green : imp.status === "processing" ? C.gold : C.red;
 
   return (
     <div style={{
-      display: "grid", gridTemplateColumns: "1fr 80px 60px 60px 80px 36px",
-      minWidth: 420,
-      gap: 12, alignItems: "center",
+      display: "grid", gridTemplateColumns: "32px 1fr 80px 60px 60px 80px 36px",
+      minWidth: 460,
+      gap: 10, alignItems: "center",
       padding: "12px 16px", borderBottom: `1px solid ${C.border}`,
       fontSize: 12,
     }}>
+      <div style={{ fontSize: 16, textAlign: "center" }}>{typeIcon(imp.file_type)}</div>
       <div style={{ minWidth: 0 }}>
-        <div style={{ color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{imp.filename || "Unknown file"}</div>
-        {imp.date_from && (
-          <div style={{ color: C.textMuted, fontSize: 10, marginTop: 2 }}>
-            {imp.date_from} – {imp.date_to || "present"}
-          </div>
-        )}
+        <div style={{ color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {String(imp.filename || "Unknown file")}
+        </div>
       </div>
       <div style={{ color: C.textMuted }}>{date}</div>
       <div style={{ color: C.green }}>{imp.imported || 0}</div>
-      {imp.failed > 0
+      {(imp.failed || 0) > 0
         ? <div style={{ color: C.red }}>{imp.failed}</div>
         : <div style={{ color: C.textMuted }}>—</div>
       }
@@ -211,7 +250,7 @@ function HistoryRow({ imp, onDelete }) {
           color: statusColor,
           border: `1px solid ${statusColor}44`,
           textTransform: "capitalize",
-        }}>{imp.status}</span>
+        }}>{String(imp.status || "unknown")}</span>
       </div>
       <button
         className="ih-del"
@@ -228,7 +267,6 @@ function HistoryRow({ imp, onDelete }) {
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
 export default function ImportHistory({ user, onNavigate }) {
   inject();
 
@@ -241,10 +279,10 @@ export default function ImportHistory({ user, onNavigate }) {
 
   const loadHistory = useCallback(async () => {
     try {
-      const res = await authFetch(`${API}/import/limitless/history`);
+      const res = await authFetch(`${API}/import/file/history`);
       if (res.ok) {
         const d = await res.json();
-        setHistory(d.imports || []);
+        setHistory(Array.isArray(d.imports) ? d.imports : []);
       }
     } catch { /* offline */ }
     finally { setLoading(false); }
@@ -258,17 +296,15 @@ export default function ImportHistory({ user, onNavigate }) {
     try {
       const form = new FormData();
       form.append("file", file, file.name);
-      const res = await authFetch(`${API}/import/limitless`, {
+      const res = await authFetch(`${API}/import/file`, {
         method: "POST",
         body: form,
       });
-      const d = await res.json();
+      let d;
+      try { d = await res.json(); } catch { d = {}; }
+
       if (!res.ok) {
-        setUploadErr(d.detail || "Upload failed.");
-        return;
-      }
-      if (d.status === "nothing_new") {
-        setUploadErr("All sessions in this file have already been imported.");
+        setUploadErr(String(d.detail || `Upload failed (${res.status}).`));
         return;
       }
       setActiveJob(d);
@@ -282,9 +318,10 @@ export default function ImportHistory({ user, onNavigate }) {
   async function deleteImport(jobId) {
     if (!window.confirm("Delete this import batch? All entries it created will be removed.")) return;
     try {
-      const res = await authFetch(`${API}/import/limitless/${jobId}`, { method: "DELETE" });
-      const d   = await res.json();
-      setDeleteMsg(`Deleted ${d.entries_deleted} entries.`);
+      const res = await authFetch(`${API}/import/file/${jobId}`, { method: "DELETE" });
+      let d;
+      try { d = await res.json(); } catch { d = {}; }
+      setDeleteMsg(`Deleted ${d.entries_deleted || 0} entries.`);
       await loadHistory();
       setTimeout(() => setDeleteMsg(null), 4000);
     } catch {
@@ -310,11 +347,11 @@ export default function ImportHistory({ user, onNavigate }) {
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ color: C.goldMuted, fontSize: 10, letterSpacing: "0.16em", marginBottom: 6 }}>TOOLS &nbsp;·&nbsp; IMPORT</div>
-        <div style={{ fontSize: 26, color: C.gold, fontStyle: "italic" }}>Limitless Import</div>
+        <div style={{ fontSize: 26, color: C.gold, fontStyle: "italic" }}>Import Data</div>
         <div style={{ color: C.textMuted, fontSize: 13, marginTop: 6, lineHeight: 1.6, maxWidth: 580 }}>
-          Limitless was acquired by Meta in December 2025 and shut down. If you exported your data before December 19,
-          you can import it here. Your transcripts will be processed through the same concept extraction pipeline as
-          your journal entries — building your graph from everything you captured.
+          Import any file into your knowledge graph. Books, notes, documents, transcripts — 
+          anything you've read or written gets processed through the same concept extraction 
+          pipeline as your journal entries.
         </div>
       </div>
 
@@ -327,11 +364,11 @@ export default function ImportHistory({ user, onNavigate }) {
         }}>
           <div>
             <div style={{ color: C.gold, fontSize: 24, fontStyle: "italic" }}>{totalImported}</div>
-            <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: "0.1em" }}>SESSIONS IMPORTED</div>
+            <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: "0.1em" }}>CHUNKS IMPORTED</div>
           </div>
           <div>
             <div style={{ color: C.gold, fontSize: 24, fontStyle: "italic" }}>{history.length}</div>
-            <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: "0.1em" }}>IMPORT BATCHES</div>
+            <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: "0.1em" }}>FILES PROCESSED</div>
           </div>
         </div>
       )}
@@ -342,39 +379,33 @@ export default function ImportHistory({ user, onNavigate }) {
       {/* Upload zone */}
       {!activeJob && (
         <div style={{ marginBottom: 32 }}>
-          {uploading ? (
-            <div style={{
-              border: `1px solid ${C.border}`, borderRadius: 4,
-              padding: "30px", textAlign: "center",
-            }}>
-              <Spinner size={24} />
-              <div style={{ color: C.textMuted, fontSize: 13, marginTop: 12 }}>Uploading and parsing export file…</div>
-            </div>
-          ) : (
-            <UploadZone onFile={handleFile} />
-          )}
+          <UploadZone onFile={handleFile} uploading={uploading} />
           {uploadErr && (
             <div style={{
               marginTop: 10, padding: "9px 14px",
               background: "rgba(192,57,43,0.06)", border: `1px solid rgba(192,57,43,0.25)`,
               borderRadius: 3, color: "#e07070", fontSize: 12, lineHeight: 1.5,
-            }}>{uploadErr}</div>
+            }}>{String(uploadErr)}</div>
           )}
         </div>
       )}
 
-      {/* Supported formats */}
+      {/* How it works */}
       <div style={{
         padding: "14px 16px", background: C.goldFaint,
         border: `1px solid ${C.border}`, borderRadius: 3,
-        marginBottom: 32, fontSize: 12, lineHeight: 1.7,
+        marginBottom: 32, fontSize: 12, lineHeight: 1.8,
       }}>
-        <div style={{ color: C.gold, marginBottom: 4 }}>What formats are supported?</div>
+        <div style={{ color: C.gold, marginBottom: 6 }}>How import works</div>
         <div style={{ color: C.textMuted }}>
-          .json — Single transcript export or full archive (transcripts.json)<br />
-          .zip — ZIP archive containing multiple session files<br />
-          Rewind legacy format (memories export) is also supported.<br />
-          Sessions shorter than 30 words are skipped. Re-uploading the same file is safe — duplicates are detected automatically.
+          <strong style={{ color: C.text }}>📄 PDF</strong> — Books, articles, research papers, exported notes<br />
+          <strong style={{ color: C.text }}>📝 Word (.docx)</strong> — Documents, essays, notes<br />
+          <strong style={{ color: C.text }}>📃 Text / Markdown</strong> — Plain text notes, journal exports, blog drafts<br />
+          <strong style={{ color: C.text }}>🗂 JSON</strong> — Limitless / Rewind transcript exports<br />
+          <strong style={{ color: C.text }}>📦 ZIP</strong> — Archive of multiple files (JSON or text)<br />
+          <br />
+          Long documents are split into ~800-word chunks. Each chunk is processed individually 
+          for concept extraction. Re-uploading a file is safe.
         </div>
       </div>
 
@@ -385,7 +416,7 @@ export default function ImportHistory({ user, onNavigate }) {
           justifyContent: "space-between", marginBottom: 12,
         }}>
           <div style={{ color: C.goldMuted, fontSize: 10, letterSpacing: "0.14em" }}>IMPORT HISTORY</div>
-          {deleteMsg && <span style={{ color: C.textMuted, fontSize: 11 }}>{deleteMsg}</span>}
+          {deleteMsg && <span style={{ color: C.textMuted, fontSize: 11 }}>{String(deleteMsg)}</span>}
         </div>
 
         {loading ? (
@@ -397,16 +428,16 @@ export default function ImportHistory({ user, onNavigate }) {
           }}>No imports yet.</div>
         ) : (
           <div style={{ border: `1px solid ${C.border}`, borderRadius: 4, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            {/* Table header */}
             <div style={{
-              display: "grid", gridTemplateColumns: "1fr 80px 60px 60px 80px 36px",
-              minWidth: 420,
-              gap: 12, padding: "8px 16px",
+              display: "grid", gridTemplateColumns: "32px 1fr 80px 60px 60px 80px 36px",
+              minWidth: 460,
+              gap: 10, padding: "8px 16px",
               background: "rgba(200,169,110,0.06)",
               borderBottom: `1px solid ${C.border}`,
               fontSize: 9, letterSpacing: "0.12em", color: C.goldMuted,
               textTransform: "uppercase",
             }}>
+              <span />
               <span>File</span>
               <span>Date</span>
               <span>Imported</span>
@@ -421,15 +452,13 @@ export default function ImportHistory({ user, onNavigate }) {
         )}
       </div>
 
-      {/* Graph note */}
       {totalImported > 0 && (
         <div style={{
           marginTop: 24, padding: "14px 16px",
           border: `1px solid ${C.border}`, borderRadius: 3,
           color: C.textMuted, fontSize: 12, lineHeight: 1.7,
         }}>
-          Your imported sessions have been processed through the concept extraction pipeline and added to your knowledge graph.
-          {" "}
+          Your imported files have been processed and added to your knowledge graph.{" "}
           <span
             onClick={() => onNavigate?.("graph")}
             style={{ color: C.gold, cursor: "pointer", textDecoration: "underline" }}
